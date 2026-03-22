@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,12 +9,16 @@ import { colors, spacing, radii, shadows } from '../../src/theme';
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  async function handleLogout() {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: async () => { await logout(); router.replace('/(auth)/login'); } },
-    ]);
+  async function confirmLogout() {
+    setShowLogoutModal(false);
+    await logout();
+    router.replace('/(auth)/login');
+  }
+
+  function handleLogout() {
+    setShowLogoutModal(true);
   }
 
   const menuItems = [
@@ -74,6 +79,27 @@ export default function ProfileScreen() {
 
         <Text style={styles.version}>Version 1.0.0</Text>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <Modal visible={showLogoutModal} transparent animationType="fade" onRequestClose={() => setShowLogoutModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="log-out-outline" size={32} color={colors.error} />
+            </View>
+            <Text style={styles.modalTitle}>Logout</Text>
+            <Text style={styles.modalSubtitle}>Are you sure you want to logout?</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity testID="logout-cancel-btn" style={styles.modalCancelBtn} onPress={() => setShowLogoutModal(false)} activeOpacity={0.7}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="logout-confirm-btn" style={styles.modalConfirmBtn} onPress={confirmLogout} activeOpacity={0.7}>
+                <Text style={styles.modalConfirmText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -96,4 +122,14 @@ const styles = StyleSheet.create({
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xl, paddingVertical: spacing.md },
   logoutText: { fontSize: 16, fontWeight: '600', color: colors.error },
   version: { textAlign: 'center', color: colors.textMuted, fontSize: 12, marginTop: spacing.md, paddingBottom: spacing.xxl },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xl },
+  modalBox: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, width: '100%', maxWidth: 340, alignItems: 'center' },
+  modalIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.md },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.textMain },
+  modalSubtitle: { fontSize: 14, color: colors.textMuted, marginTop: spacing.xs, textAlign: 'center' },
+  modalActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg, width: '100%' },
+  modalCancelBtn: { flex: 1, height: 48, borderRadius: radii.pill, backgroundColor: colors.surfaceAlt, justifyContent: 'center', alignItems: 'center' },
+  modalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMain },
+  modalConfirmBtn: { flex: 1, height: 48, borderRadius: radii.pill, backgroundColor: colors.error, justifyContent: 'center', alignItems: 'center' },
+  modalConfirmText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 });
