@@ -110,7 +110,7 @@ export default function HomeScreen() {
                 <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
                 <Text style={styles.productWeight}>{product.weight} {product.unit !== 'piece' ? `/ ${product.unit}` : ''}</Text>
                 <View style={styles.productBottom}>
-                  <Text style={styles.productPrice}>${product.price.toFixed(2)}</Text>
+                  <Text style={styles.productPrice}>₹{product.price.toFixed(2)}</Text>
                   <View style={styles.addBtn}>
                     <Ionicons name="add" size={18} color={colors.primary} />
                   </View>

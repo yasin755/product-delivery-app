@@ -67,7 +67,7 @@ export default function CategoryScreen() {
               <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
               <Text style={styles.cardWeight}>{item.weight}</Text>
               <View style={styles.cardBottom}>
-                <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+                <Text style={styles.cardPrice}>₹{item.price.toFixed(2)}</Text>
                 <View style={styles.cardAdd}>
                   <Ionicons name="add" size={16} color={colors.primary} />
                 </View>

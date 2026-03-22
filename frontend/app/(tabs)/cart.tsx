@@ -84,7 +84,7 @@ export default function CartScreen() {
                 <Image source={{ uri: item.product?.image }} style={styles.itemImg} />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName} numberOfLines={1}>{item.product?.name}</Text>
-                  <Text style={styles.itemPrice}>${item.product?.price?.toFixed(2)} / {item.product?.unit}</Text>
+                  <Text style={styles.itemPrice}>₹{item.product?.price?.toFixed(2)} / {item.product?.unit}</Text>
                   <View style={styles.qtyRow}>
                     <TouchableOpacity
                       testID={`cart-decrease-${item.product_id}`}
@@ -105,14 +105,14 @@ export default function CartScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={styles.itemTotal}>${(item.product?.price * item.quantity).toFixed(2)}</Text>
+                <Text style={styles.itemTotal}>₹{(item.product?.price * item.quantity).toFixed(2)}</Text>
               </View>
             )}
           />
           <View style={styles.footer}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${cart.total.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>₹{cart.total.toFixed(2)}</Text>
             </View>
             <TouchableOpacity
               testID="cart-checkout-btn"

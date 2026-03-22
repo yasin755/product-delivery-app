@@ -75,7 +75,7 @@ export default function OrdersScreen() {
               </View>
               <View style={styles.orderBottom}>
                 <Text style={styles.orderItems}>{item.items?.length || 0} items</Text>
-                <Text style={styles.orderTotal}>${item.total?.toFixed(2)}</Text>
+                <Text style={styles.orderTotal}>₹{item.total?.toFixed(2)}</Text>
               </View>
             </TouchableOpacity>
           )}

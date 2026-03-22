@@ -180,12 +180,12 @@ export default function CheckoutScreen() {
           {cart.items.map((item: any) => (
             <View key={item.product_id} style={styles.summaryItem}>
               <Text style={styles.summaryName}>{item.product?.name} x{item.quantity}</Text>
-              <Text style={styles.summaryPrice}>${(item.product?.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.summaryPrice}>₹{(item.product?.price * item.quantity).toFixed(2)}</Text>
             </View>
           ))}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>${cart.total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>₹{cart.total.toFixed(2)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Delivery</Text>
@@ -193,7 +193,7 @@ export default function CheckoutScreen() {
           </View>
           <View style={[styles.totalRow, styles.grandTotal]}>
             <Text style={styles.grandLabel}>Total</Text>
-            <Text style={styles.grandValue}>${cart.total.toFixed(2)}</Text>
+            <Text style={styles.grandValue}>₹{cart.total.toFixed(2)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -209,7 +209,7 @@ export default function CheckoutScreen() {
           {processing ? <ActivityIndicator color="#fff" /> : (
             <>
               <Ionicons name="lock-closed" size={18} color="#fff" />
-              <Text style={styles.payBtnText}>Pay ${cart.total.toFixed(2)}</Text>
+              <Text style={styles.payBtnText}>Pay ₹{cart.total.toFixed(2)}</Text>
             </>
           )}
         </TouchableOpacity>

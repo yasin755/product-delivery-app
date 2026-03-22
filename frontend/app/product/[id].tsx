@@ -72,7 +72,7 @@ export default function ProductDetailScreen() {
               <Text style={styles.reviews}>({product.review_count} reviews)</Text>
             </View>
           </View>
-          <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+          <Text style={styles.price}>₹{product.price.toFixed(2)}</Text>
           <Text style={styles.desc}>{product.description}</Text>
 
           {/* Quantity */}
@@ -107,7 +107,7 @@ export default function ProductDetailScreen() {
       <View style={styles.bottomBar}>
         <View>
           <Text style={styles.bottomLabel}>Total</Text>
-          <Text style={styles.bottomPrice}>${(product.price * quantity).toFixed(2)}</Text>
+          <Text style={styles.bottomPrice}>₹{(product.price * quantity).toFixed(2)}</Text>
         </View>
         <TouchableOpacity
           testID="product-add-to-cart-btn"

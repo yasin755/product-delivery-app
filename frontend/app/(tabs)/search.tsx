@@ -88,7 +88,7 @@ export default function SearchScreen() {
             <View style={styles.resultInfo}>
               <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.resultWeight}>{item.weight}</Text>
-              <Text style={styles.resultPrice}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.resultPrice}>₹{item.price.toFixed(2)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
