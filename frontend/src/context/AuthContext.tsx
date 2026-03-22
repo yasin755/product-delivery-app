@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(profile);
       }
     } catch {
-      await AsyncStorage.removeItem('auth_token');
+      try { await AsyncStorage.removeItem('auth_token'); } catch {}
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    await AsyncStorage.setItem('auth_token', data.token);
+    try { await AsyncStorage.setItem('auth_token', data.token); } catch (e) { console.warn('Storage error:', e); }
     setUser(data.user);
   }
 
@@ -65,12 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ name, email, phone, password }),
     });
-    await AsyncStorage.setItem('auth_token', data.token);
+    try { await AsyncStorage.setItem('auth_token', data.token); } catch (e) { console.warn('Storage error:', e); }
     setUser(data.user);
   }
 
   async function logout() {
-    await AsyncStorage.removeItem('auth_token');
+    try { await AsyncStorage.removeItem('auth_token'); } catch {}
     setUser(null);
   }
 
