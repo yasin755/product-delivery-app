@@ -1,0 +1,151 @@
+{
+  "theme": "Light Mode Primary (High Trust, Clean, E-commerce)",
+  "typography": {
+    "fonts_to_install": [
+      "@expo-google-fonts/plus-jakarta-sans",
+      "@expo-google-fonts/dm-sans"
+    ],
+    "headings": {
+      "fontFamily": "PlusJakartaSans_700Bold",
+      "h1": { "fontSize": 32, "lineHeight": 40, "letterSpacing": -1 },
+      "h2": { "fontSize": 24, "lineHeight": 32, "letterSpacing": -0.5 },
+      "h3": { "fontSize": 20, "lineHeight": 28, "letterSpacing": -0.3 }
+    },
+    "body": {
+      "fontFamily": "DMSans_400Regular",
+      "base": { "fontSize": 16, "lineHeight": 24, "letterSpacing": 0 },
+      "small": { "fontSize": 14, "lineHeight": 20, "letterSpacing": 0.1 },
+      "caption": { "fontSize": 12, "lineHeight": 16, "letterSpacing": 0.5, "textTransform": "uppercase" }
+    },
+    "cta": {
+      "fontFamily": "PlusJakartaSans_600SemiBold",
+      "fontSize": 16,
+      "letterSpacing": 0.2
+    }
+  },
+  "colors": {
+    "background": "#FCFCFC",
+    "surface": "#FFFFFF",
+    "surface_alt": "#F4F4F5",
+    "primary": "#EA580C",
+    "primary_light": "#FFEDD5",
+    "secondary": "#16A34A",
+    "secondary_light": "#DCFCE7",
+    "text_main": "#18181B",
+    "text_muted": "#71717A",
+    "border": "#E4E4E7",
+    "error": "#EF4444",
+    "success": "#10B981"
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "sm": { "shadowColor": "#000", "shadowOffset": { "width": 0, "height": 1 }, "shadowOpacity": 0.05, "shadowRadius": 2, "elevation": 2 },
+      "md": { "shadowColor": "#000", "shadowOffset": { "width": 0, "height": 4 }, "shadowOpacity": 0.08, "shadowRadius": 12, "elevation": 4 }
+    },
+    "radii": {
+      "sm": 8,
+      "md": 16,
+      "lg": 24,
+      "pill": 9999
+    },
+    "spacing": {
+      "xs": 4,
+      "sm": 8,
+      "md": 16,
+      "lg": 24,
+      "xl": 32,
+      "xxl": 48
+    }
+  },
+  "grids_and_layouts": {
+    "screen_padding": 16,
+    "product_grid": {
+      "columns": 2,
+      "gap": 16,
+      "card_aspect_ratio": 0.8
+    },
+    "category_scroll": {
+      "horizontal": true,
+      "item_width": 80,
+      "gap": 12
+    },
+    "bento_dashboard": {
+      "gap": 16,
+      "radius": 24,
+      "padding": 20
+    }
+  },
+  "accessibility": {
+    "touch_targets": {
+      "min_height": 48,
+      "min_width": 48
+    },
+    "contrast": "Ensure minimum 4.5:1 for text against backgrounds. Avoid gray-on-gray.",
+    "active_states": "Use TouchableOpacity with activeOpacity={0.7} for feedback."
+  },
+  "components_design": {
+    "button": {
+      "primary": "backgroundColor: primary, borderRadius: pill, height: 56, justifyContent: center, alignItems: center, shadow: sm",
+      "secondary": "backgroundColor: surface_alt, borderRadius: pill, height: 56, justifyContent: center, alignItems: center",
+      "outline": "borderWidth: 1, borderColor: border, borderRadius: pill, height: 56, justifyContent: center, alignItems: center"
+    },
+    "product_card": {
+      "container": "backgroundColor: surface, borderRadius: md, padding: 12, shadow: sm",
+      "image": "width: 100%, aspectRatio: 1, borderRadius: sm, resizeMode: cover",
+      "title": "marginTop: 8, fontFamily: PlusJakartaSans_600SemiBold, fontSize: 14, color: text_main",
+      "price": "marginTop: 4, color: primary, fontFamily: PlusJakartaSans_700Bold",
+      "add_button": "position: absolute, bottom: 12, right: 12, backgroundColor: primary_light, borderRadius: pill, padding: 8"
+    },
+    "category_pill": {
+      "container": "alignItems: center, gap: 8",
+      "icon_wrapper": "width: 64, height: 64, borderRadius: pill, backgroundColor: surface_alt, justifyContent: center, alignItems: center",
+      "text": "fontSize: 12, fontFamily: PlusJakartaSans_600SemiBold, color: text_main"
+    },
+    "header": {
+      "container": "flexDirection: row, justifyContent: space-between, alignItems: center, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: surface",
+      "search_bar": "flex: 1, height: 48, backgroundColor: surface_alt, borderRadius: pill, paddingHorizontal: 16, flexDirection: row, alignItems: center"
+    }
+  },
+  "image_urls": [
+    {
+      "category": "groceries_vegetables",
+      "url": "https://images.pexels.com/photos/5033529/pexels-photo-5033529.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Top view of fresh vegetables including tomatoes, cilantro, lettuce, cucumbers, and onions on a wooden surface."
+    },
+    {
+      "category": "meat",
+      "url": "https://images.pexels.com/photos/618775/pexels-photo-618775.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Raw beef steak seasoned with spices on a wooden chopping board. Perfect for cooking enthusiasts."
+    },
+    {
+      "category": "water",
+      "url": "https://images.unsplash.com/photo-1632243575963-3143700087ed?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwyfHxib3R0bGVkJTIwd2F0ZXIlMjBzcGxhc2h8ZW58MHx8fHwxNzc0MTkzMzYxfDA&ixlib=rb-4.1.0&q=85",
+      "description": "a spray bottle on a table with a blurry background"
+    },
+    {
+      "category": "kids_toys",
+      "url": "https://images.pexels.com/photos/5435599/pexels-photo-5435599.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Toddler engaging with vibrant toy blocks on a patterned rug in a playful setting."
+    },
+    {
+      "category": "vegetables_alt",
+      "url": "https://images.unsplash.com/photo-1611693424421-3db00de93a89?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwzfHxmcmVzaCUyMG9yZ2FuaWMlMjB2ZWdldGFibGVzJTIwZmxhdGxheXxlbnwwfHx8fDE3NzQxOTMzNTl8MA&ixlib=rb-4.1.0&q=85",
+      "description": "green and yellow vegetables and fruits"
+    }
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "CRITICAL: This is an Expo React Native app. Do NOT use HTML tags (div, span, p) or Tailwind classes. ONLY use StyleSheet.create() for all styling.",
+    "MANDATORY: All interactive and key informational elements MUST include a `testID` attribute to facilitate robust automated testing. Example: testID='category-vegetables-btn'",
+    "MANDATORY: Ensure SafeAreaView from 'react-native-safe-area-context' is used to avoid notches and status bars.",
+    "DESIGN: Use an 'Organic & Earthy' high-contrast vibe. Base colors are clean Off-White (#FCFCFC) with vibrant Terracotta/Orange CTA (#EA580C) to evoke freshness and appetite.",
+    "DESIGN: Negative Space is key. Use generous margins and paddings. A cramped UI looks cheap and reduces usability.",
+    "DESIGN: Use bold, tightly spaced typography for headings and clean, readable typography for body text.",
+    "DESIGN: Do not 'center-everything'. Asymmetry creates interest. Left-align text for better readability on product cards and lists.",
+    "DESIGN: Admin Dashboard must also be mobile-responsive and thumb-friendly. Use 'Bento Box' grid styles using flexWrap for admin widgets.",
+    "DESIGN: Use @expo/vector-icons (Feather or Ionicons) for all icons.",
+    "DESIGN: Product images should not have full 100% white background if possible; give the image container a slight gray background (#F4F4F5) and use resizeMode='contain' for transparent product PNGs, or resizeMode='cover' for lifestyle imagery.",
+    "DESIGN: Buttons should be tall (min 56px) and pill-shaped (borderRadius: 9999) with activeOpacity={0.7} to ensure thumb-friendly touch targets.",
+    "CRITICAL: Do not use complete transparent backgrounds for header/nav overlays. Use a solid background or Expo BlurView to ensure text legibility."
+  ],
+  "instructions_to_main_agent": "Read and implement the JSON definitions. Build out the components using React Native primitives (View, Text, Image, ScrollView, FlatList, TouchableOpacity). Follow the color palette and typography strictly. Ensure you install the required fonts using expo-font. Do not invent your own UI patterns; rely entirely on the structural, visual, and architectural constraints provided in this file."
+}
