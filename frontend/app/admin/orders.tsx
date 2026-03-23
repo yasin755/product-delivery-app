@@ -72,7 +72,7 @@ export default function AdminOrders() {
                 <Text style={styles.cardUser}>{item.user_name} - {item.user_email}</Text>
                 <Text style={styles.cardDate}>{new Date(item.created_at).toLocaleString()}</Text>
               </View>
-              <Text style={styles.cardTotal}>${item.total?.toFixed(2)}</Text>
+              <Text style={styles.cardTotal}>₹{item.total?.toFixed(2)}</Text>
             </View>
             <View style={styles.cardBottom}>
               <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] || colors.textMuted }]}>

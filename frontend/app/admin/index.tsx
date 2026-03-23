@@ -28,7 +28,7 @@ export default function AdminDashboard() {
 
   const stats = [
     { label: 'Total Orders', value: dashboard?.total_orders || 0, icon: 'receipt', color: '#3B82F6', bg: '#DBEAFE' },
-    { label: 'Revenue', value: `$${dashboard?.total_revenue?.toFixed(2) || '0.00'}`, icon: 'cash', color: '#10B981', bg: '#D1FAE5' },
+    { label: 'Revenue', value: `₹${dashboard?.total_revenue?.toFixed(2) || '0.00'}`, icon: 'cash', color: '#10B981', bg: '#D1FAE5' },
     { label: 'Products', value: dashboard?.total_products || 0, icon: 'cube', color: '#8B5CF6', bg: '#EDE9FE' },
     { label: 'Users', value: dashboard?.total_users || 0, icon: 'people', color: '#F59E0B', bg: '#FEF3C7' },
   ];
@@ -113,7 +113,7 @@ export default function AdminDashboard() {
                 <Text style={styles.recentUser}>{order.user_name}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.recentTotal}>${order.total?.toFixed(2)}</Text>
+                <Text style={styles.recentTotal}>₹{order.total?.toFixed(2)}</Text>
                 <Text style={[styles.recentStatus, { color: order.status === 'delivered' ? colors.success : colors.primary }]}>{order.status}</Text>
               </View>
             </View>

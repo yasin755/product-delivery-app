@@ -57,7 +57,7 @@ export default function AdminProducts() {
             <View style={styles.cardInfo}>
               <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.cardCategory}>{item.unit} - Stock: {item.stock}</Text>
-              <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.cardPrice}>₹{item.price.toFixed(2)}</Text>
             </View>
             <TouchableOpacity testID={`admin-delete-product-${item.id}`} onPress={() => deleteProduct(item.id)} activeOpacity={0.7}>
               <Ionicons name="trash-outline" size={20} color={colors.error} />

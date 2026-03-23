@@ -346,7 +346,7 @@ async def create_order(data: OrderCreate, request: Request, user=Depends(get_cur
     stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
 
     checkout_request = CheckoutSessionRequest(
-        amount=float(total), currency='usd',
+        amount=float(total), currency='inr',
         success_url=success_url, cancel_url=cancel_url,
         metadata={'order_id': order_id, 'user_id': user['id']}
     )
@@ -357,7 +357,7 @@ async def create_order(data: OrderCreate, request: Request, user=Depends(get_cur
     # Payment transaction record
     await db.payment_transactions.insert_one({
         'id': str(uuid.uuid4()), 'user_id': user['id'], 'order_id': order_id,
-        'session_id': session.session_id, 'amount': float(total), 'currency': 'usd',
+        'session_id': session.session_id, 'amount': float(total), 'currency': 'inr',
         'status': 'initiated', 'payment_status': 'pending',
         'created_at': datetime.now(timezone.utc).isoformat(),
         'updated_at': datetime.now(timezone.utc).isoformat()
