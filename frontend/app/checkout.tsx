@@ -1,16 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import * as Location from 'expo-location';
 import { api, getApiBase } from '../src/api';
 import { useAuth } from '../src/context/AuthContext';
 import { colors, spacing, radii, shadows } from '../src/theme';
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const params = useLocalSearchParams();
   const [cart, setCart] = useState<any>({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
@@ -18,8 +19,11 @@ export default function CheckoutScreen() {
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<any>(null);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [editAddr, setEditAddr] = useState({ label: 'Home', address_line: '', city: '', state: '', pincode: '', phone: '' });
+  const [detecting, setDetecting] = useState(false);
 
-  // Check if returning from payment
   useEffect(() => {
     if (params.session_id && params.status === 'success') {
       pollPaymentStatus(params.session_id as string, params.order_id as string);
@@ -27,6 +31,12 @@ export default function CheckoutScreen() {
       fetchCart();
     }
   }, [params.session_id]);
+
+  useEffect(() => {
+    if (user?.addresses && user.addresses.length > 0) {
+      setSelectedAddress(user.addresses[user.addresses.length - 1]);
+    }
+  }, [user?.addresses]);
 
   async function fetchCart() {
     try {
@@ -37,9 +47,8 @@ export default function CheckoutScreen() {
   }
 
   async function pollPaymentStatus(sessionId: string, oid: string, attempts = 0) {
-    const maxAttempts = 5;
-    if (attempts >= maxAttempts) {
-      Alert.alert('Payment Status', 'Could not confirm payment. Check your orders for status.');
+    if (attempts >= 5) {
+      Alert.alert('Payment Status', 'Could not confirm payment. Check your orders.');
       setLoading(false);
       return;
     }
@@ -52,14 +61,15 @@ export default function CheckoutScreen() {
         return;
       }
       setTimeout(() => pollPaymentStatus(sessionId, oid, attempts + 1), 2000);
-    } catch (e) {
+    } catch {
       setTimeout(() => pollPaymentStatus(sessionId, oid, attempts + 1), 2000);
     }
   }
 
   async function handleCheckout() {
-    if (!user?.addresses?.length) {
-      Alert.alert('Address Required', 'Please add a delivery address first.');
+    if (!selectedAddress) {
+      Alert.alert('Address Required', 'Please add a delivery address.');
+      setShowAddressModal(true);
       return;
     }
     setProcessing(true);
@@ -67,10 +77,7 @@ export default function CheckoutScreen() {
       const originUrl = getApiBase();
       const data = await api('/api/orders/checkout', {
         method: 'POST',
-        body: JSON.stringify({
-          address: user.addresses[0],
-          origin_url: originUrl,
-        }),
+        body: JSON.stringify({ address: selectedAddress, origin_url: originUrl }),
       });
       setOrderId(data.order_id);
       setCheckoutUrl(data.checkout_url);
@@ -98,6 +105,52 @@ export default function CheckoutScreen() {
     }
   }
 
+  async function detectLocation() {
+    setDetecting(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Enable location in settings.');
+        setDetecting(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      if (geo) {
+        setEditAddr({
+          label: 'Current Location',
+          address_line: [geo.name, geo.street].filter(Boolean).join(', ') || geo.formattedAddress || '',
+          city: geo.city || geo.subregion || '',
+          state: geo.region || '',
+          pincode: geo.postalCode || '',
+          phone: user?.phone || '',
+        });
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to detect location.');
+    }
+    setDetecting(false);
+  }
+
+  async function saveAndSelectAddress() {
+    if (!editAddr.address_line.trim() || !editAddr.city.trim()) {
+      Alert.alert('Error', 'Address line and city are required.');
+      return;
+    }
+    try {
+      const res = await api('/api/auth/address', {
+        method: 'POST',
+        body: JSON.stringify({ ...editAddr, phone: editAddr.phone || user?.phone || '' }),
+      });
+      await refreshProfile();
+      setSelectedAddress(res.address);
+      setShowAddressModal(false);
+      setEditAddr({ label: 'Home', address_line: '', city: '', state: '', pincode: '', phone: '' });
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  }
+
   // Stripe WebView
   if (checkoutUrl) {
     return (
@@ -109,13 +162,7 @@ export default function CheckoutScreen() {
           <Text style={styles.webTitle}>Secure Payment</Text>
           <Ionicons name="lock-closed" size={18} color={colors.success} />
         </View>
-        <WebView
-          source={{ uri: checkoutUrl }}
-          onNavigationStateChange={handleWebViewNavigation}
-          style={styles.webview}
-          startInLoadingState
-          renderLoading={() => <ActivityIndicator style={styles.webLoading} size="large" color={colors.primary} />}
-        />
+        <WebView source={{ uri: checkoutUrl }} onNavigationStateChange={handleWebViewNavigation} style={styles.webview} startInLoadingState renderLoading={() => <ActivityIndicator style={styles.webLoading} size="large" color={colors.primary} />} />
       </SafeAreaView>
     );
   }
@@ -125,9 +172,7 @@ export default function CheckoutScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.successWrap}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={80} color={colors.success} />
-          </View>
+          <View style={styles.successIcon}><Ionicons name="checkmark-circle" size={80} color={colors.success} /></View>
           <Text style={styles.successTitle}>Order Placed!</Text>
           <Text style={styles.successSubtitle}>Your order has been confirmed and will be delivered soon.</Text>
           <TouchableOpacity testID="checkout-view-order" style={styles.primaryBtn} onPress={() => router.replace(`/order/${orderId}`)} activeOpacity={0.7}>
@@ -145,8 +190,6 @@ export default function CheckoutScreen() {
     return <SafeAreaView style={styles.safe}><View style={styles.centered}><ActivityIndicator size="large" color={colors.primary} /></View></SafeAreaView>;
   }
 
-  const address = user?.addresses?.[0];
-
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -160,17 +203,25 @@ export default function CheckoutScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Address */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Delivery Address</Text>
-          {address ? (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Delivery Address</Text>
+            <TouchableOpacity testID="checkout-change-address-btn" onPress={() => setShowAddressModal(true)} activeOpacity={0.7}>
+              <Text style={styles.changeBtn}>{selectedAddress ? 'Change' : 'Add'}</Text>
+            </TouchableOpacity>
+          </View>
+          {selectedAddress ? (
             <View style={styles.addressCard}>
               <Ionicons name="location" size={20} color={colors.primary} />
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={styles.addressLabel}>{address.label}</Text>
-                <Text style={styles.addressText}>{address.address_line}, {address.city}, {address.state} {address.pincode}</Text>
+                <Text style={styles.addressLabel}>{selectedAddress.label}</Text>
+                <Text style={styles.addressText}>{selectedAddress.address_line}, {selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</Text>
               </View>
             </View>
           ) : (
-            <Text style={styles.noAddress}>No address found. Please add one from your profile.</Text>
+            <TouchableOpacity testID="checkout-add-address-btn" style={styles.noAddressCard} onPress={() => setShowAddressModal(true)} activeOpacity={0.7}>
+              <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+              <Text style={styles.noAddressText}>Add a delivery address</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -201,9 +252,9 @@ export default function CheckoutScreen() {
       <View style={styles.footer}>
         <TouchableOpacity
           testID="checkout-pay-btn"
-          style={[styles.payBtn, (!address || cart.items.length === 0) && { opacity: 0.5 }]}
+          style={[styles.payBtn, (!selectedAddress || cart.items.length === 0) && { opacity: 0.5 }]}
           onPress={handleCheckout}
-          disabled={processing || !address || cart.items.length === 0}
+          disabled={processing || !selectedAddress || cart.items.length === 0}
           activeOpacity={0.7}
         >
           {processing ? <ActivityIndicator color="#fff" /> : (
@@ -214,6 +265,83 @@ export default function CheckoutScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Address Modal */}
+      <Modal visible={showAddressModal} transparent animationType="slide" onRequestClose={() => setShowAddressModal(false)}>
+        <View style={styles.addrModalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.addrModalWrap}>
+            <View style={styles.addrModalBox}>
+              <View style={styles.addrModalHeader}>
+                <Text style={styles.addrModalTitle}>Select Address</Text>
+                <TouchableOpacity testID="close-checkout-addr-modal" onPress={() => setShowAddressModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.textMain} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                {/* Saved Addresses - Select */}
+                {user?.addresses && user.addresses.length > 0 && (
+                  <View style={styles.addrSection}>
+                    <Text style={styles.addrSectionTitle}>Saved Addresses</Text>
+                    {user.addresses.map((addr: any, i: number) => (
+                      <TouchableOpacity
+                        key={addr.id || i}
+                        testID={`select-address-${i}`}
+                        style={[styles.savedAddr, selectedAddress?.id === addr.id && styles.savedAddrSelected]}
+                        onPress={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={selectedAddress?.id === addr.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={colors.primary} />
+                        <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                          <Text style={styles.savedAddrLabel}>{addr.label}</Text>
+                          <Text style={styles.savedAddrText}>{addr.address_line}, {addr.city}, {addr.state} {addr.pincode}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {/* Add New */}
+                <View style={styles.addrSection}>
+                  <Text style={styles.addrSectionTitle}>Add New Address</Text>
+                  <TouchableOpacity testID="checkout-detect-location-btn" style={styles.detectBtn} onPress={detectLocation} disabled={detecting} activeOpacity={0.7}>
+                    {detecting ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="navigate" size={18} color={colors.primary} />}
+                    <Text style={styles.detectBtnText}>{detecting ? 'Detecting...' : 'Use Current Location'}</Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.fieldLabel}>Label</Text>
+                  <TextInput testID="checkout-addr-label" style={styles.fieldInput} value={editAddr.label} onChangeText={(t) => setEditAddr({ ...editAddr, label: t })} placeholder="Home, Work..." placeholderTextColor={colors.textMuted} />
+                  <Text style={styles.fieldLabel}>Address Line</Text>
+                  <TextInput testID="checkout-addr-line" style={styles.fieldInput} value={editAddr.address_line} onChangeText={(t) => setEditAddr({ ...editAddr, address_line: t })} placeholder="Street, building" placeholderTextColor={colors.textMuted} />
+                  <View style={styles.fieldRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>City</Text>
+                      <TextInput testID="checkout-addr-city" style={styles.fieldInput} value={editAddr.city} onChangeText={(t) => setEditAddr({ ...editAddr, city: t })} placeholder="City" placeholderTextColor={colors.textMuted} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>State</Text>
+                      <TextInput testID="checkout-addr-state" style={styles.fieldInput} value={editAddr.state} onChangeText={(t) => setEditAddr({ ...editAddr, state: t })} placeholder="State" placeholderTextColor={colors.textMuted} />
+                    </View>
+                  </View>
+                  <View style={styles.fieldRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Pincode</Text>
+                      <TextInput testID="checkout-addr-pincode" style={styles.fieldInput} value={editAddr.pincode} onChangeText={(t) => setEditAddr({ ...editAddr, pincode: t })} placeholder="Pincode" placeholderTextColor={colors.textMuted} keyboardType="number-pad" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Phone</Text>
+                      <TextInput testID="checkout-addr-phone" style={styles.fieldInput} value={editAddr.phone} onChangeText={(t) => setEditAddr({ ...editAddr, phone: t })} placeholder="Phone" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+                    </View>
+                  </View>
+                  <TouchableOpacity testID="checkout-save-address-btn" style={styles.saveAddrBtn} onPress={saveAndSelectAddress} activeOpacity={0.7}>
+                    <Text style={styles.saveAddrBtnText}>Save & Use This Address</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -225,11 +353,14 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700', color: colors.textMain },
   content: { flex: 1, paddingHorizontal: spacing.md },
   section: { marginBottom: spacing.lg },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.textMain, marginBottom: spacing.md },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.textMain },
+  changeBtn: { fontSize: 14, fontWeight: '600', color: colors.primary },
   addressCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, ...shadows.sm },
   addressLabel: { fontSize: 15, fontWeight: '600', color: colors.textMain },
   addressText: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  noAddress: { fontSize: 14, color: colors.error },
+  noAddressCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primaryLight, borderRadius: radii.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.primary, borderStyle: 'dashed' },
+  noAddressText: { fontSize: 14, fontWeight: '600', color: colors.primary },
   summaryItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   summaryName: { fontSize: 14, color: colors.textMain, flex: 1 },
   summaryPrice: { fontSize: 14, fontWeight: '600', color: colors.textMain },
@@ -242,12 +373,10 @@ const styles = StyleSheet.create({
   footer: { padding: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primary, borderRadius: radii.pill, height: 56 },
   payBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  // WebView styles
   webHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   webTitle: { fontSize: 16, fontWeight: '600', color: colors.textMain },
   webview: { flex: 1 },
   webLoading: { position: 'absolute', top: '50%', left: '50%', marginLeft: -20, marginTop: -20 },
-  // Success styles
   successWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xl },
   successIcon: { marginBottom: spacing.lg },
   successTitle: { fontSize: 28, fontWeight: '700', color: colors.textMain },
@@ -256,4 +385,23 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   secondaryBtn: { backgroundColor: colors.surfaceAlt, borderRadius: radii.pill, height: 56, width: '100%', justifyContent: 'center', alignItems: 'center', marginTop: spacing.md },
   secondaryBtnText: { color: colors.textMain, fontSize: 16, fontWeight: '600' },
+  // Address Modal
+  addrModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  addrModalWrap: { maxHeight: '90%' },
+  addrModalBox: { backgroundColor: colors.surface, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg, padding: spacing.lg, maxHeight: '100%' },
+  addrModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  addrModalTitle: { fontSize: 20, fontWeight: '700', color: colors.textMain },
+  addrSection: { marginBottom: spacing.lg },
+  addrSectionTitle: { fontSize: 16, fontWeight: '700', color: colors.textMain, marginBottom: spacing.sm },
+  savedAddr: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.surfaceAlt, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.sm },
+  savedAddrSelected: { borderWidth: 2, borderColor: colors.primary },
+  savedAddrLabel: { fontSize: 14, fontWeight: '600', color: colors.textMain },
+  savedAddrText: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  detectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primaryLight, borderRadius: radii.md, paddingVertical: 12, marginBottom: spacing.md },
+  detectBtnText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.textMain, marginBottom: 4, marginTop: spacing.sm },
+  fieldInput: { backgroundColor: colors.surfaceAlt, borderRadius: radii.sm, paddingHorizontal: spacing.md, height: 44, fontSize: 15, color: colors.textMain },
+  fieldRow: { flexDirection: 'row', gap: spacing.md },
+  saveAddrBtn: { backgroundColor: colors.primary, borderRadius: radii.pill, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: spacing.lg },
+  saveAddrBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

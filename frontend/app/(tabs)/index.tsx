@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { api } from '../../src/api';
 import { useAuth } from '../../src/context/AuthContext';
 import { colors, spacing, radii, shadows } from '../../src/theme';
@@ -12,12 +13,14 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const router = useRouter();
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [locationText, setLocationText] = useState('Detecting location...');
+  const [locationDetected, setLocationDetected] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -36,6 +39,51 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { requestLocation(); }, []);
+
+  async function requestLocation() {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationText('Location not available');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geo] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+      if (geo) {
+        const addrLine = [geo.name, geo.street].filter(Boolean).join(', ') || geo.formattedAddress || '';
+        const city = geo.city || geo.subregion || '';
+        const state = geo.region || '';
+        const pincode = geo.postalCode || '';
+        setLocationText([addrLine, city, state].filter(Boolean).join(', '));
+        setLocationDetected(true);
+
+        // Auto-save address if user has none
+        if (user && (!user.addresses || user.addresses.length === 0)) {
+          try {
+            await api('/api/auth/address', {
+              method: 'POST',
+              body: JSON.stringify({
+                label: 'Current Location',
+                address_line: addrLine || 'Auto-detected address',
+                city: city,
+                state: state,
+                pincode: pincode,
+                phone: user.phone || '',
+              }),
+            });
+            await refreshProfile();
+          } catch (e) { console.warn('Failed to save address:', e); }
+        }
+      }
+    } catch (e) {
+      console.warn('Location error:', e);
+      setLocationText('Tap to set location');
+    }
+  }
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
@@ -54,6 +102,16 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
+        {/* Location Bar */}
+        <TouchableOpacity testID="home-location-bar" style={styles.locationBar} activeOpacity={0.7}>
+          <Ionicons name="location" size={18} color={colors.primary} />
+          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+            <Text style={styles.locationLabel}>Deliver to</Text>
+            <Text style={styles.locationText} numberOfLines={1}>{locationText}</Text>
+          </View>
+          <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
         {/* Header */}
         <View style={styles.header}>
           <View>
@@ -130,6 +188,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { flex: 1 },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  locationBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.primaryLight, marginHorizontal: spacing.md, marginTop: spacing.sm, borderRadius: radii.md },
+  locationLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
+  locationText: { fontSize: 13, color: colors.textMain, fontWeight: '500' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   greeting: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   tagline: { fontSize: 22, fontWeight: '700', color: colors.textMain, letterSpacing: -0.5, marginTop: 2 },
