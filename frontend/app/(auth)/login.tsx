@@ -38,7 +38,7 @@ export default function LoginScreen() {
             <View style={styles.iconCircle}>
               <Ionicons name="bag-handle" size={40} color={colors.primary} />
             </View>
-            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.title}>Welcome</Text>
             <Text style={styles.subtitle}>Sign in to continue shopping</Text>
           </View>
 
