@@ -245,8 +245,10 @@ def test_coupon_system(results: TestResults, user_token: str, admin_token: str):
         results.log_fail("Minimum order validation", f"Expected 400 error, got status: {response['status_code']}")
     
     # Test 6: Admin create new coupon
+    import time
+    unique_code = f"TEST{int(time.time() % 10000)}"  # Generate unique code
     new_coupon = {
-        "code": "TEST50",
+        "code": unique_code,
         "discount_type": "percentage",
         "discount_value": 50,
         "min_order": 100,
@@ -267,6 +269,123 @@ def test_coupon_system(results: TestResults, user_token: str, admin_token: str):
         results.log_pass("Admin delete coupon")
     else:
         results.log_fail("Admin delete coupon", f"Status: {response['status_code']}, Data: {response['data']}")
+
+def test_product_management(results: TestResults, user_token: str, admin_token: str):
+    """Test product management operations"""
+    user_auth_headers = {"Authorization": f"Bearer {user_token}"}
+    admin_auth_headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # Test 1: Get categories (needed for product creation)
+    response = make_request("GET", "/categories")
+    if response["success"] and isinstance(response["data"], list) and len(response["data"]) > 0:
+        category_id = response["data"][0]["id"]
+        results.log_pass("Get categories")
+    else:
+        results.log_fail("Get categories", f"Status: {response['status_code']}, Data: {response['data']}")
+        return
+    
+    # Test 2: Create product as admin
+    product_data = {
+        "name": "Test Product",
+        "description": "Test description for product",
+        "price": 9.99,
+        "category_id": category_id,
+        "image": "https://example.com/test.jpg",
+        "unit": "piece",
+        "stock": 50,
+        "weight": "500g"
+    }
+    
+    response = make_request("POST", "/products", product_data, admin_auth_headers)
+    if response["success"] and "id" in response["data"]:
+        product_id = response["data"]["id"]
+        results.log_pass("Admin create product")
+    else:
+        results.log_fail("Admin create product", f"Status: {response['status_code']}, Data: {response['data']}")
+        return
+    
+    # Test 3: Try to create product as regular user (should fail)
+    response = make_request("POST", "/products", product_data, user_auth_headers)
+    if not response["success"] and response["status_code"] == 403:
+        results.log_pass("User create product forbidden")
+    else:
+        results.log_fail("User create product forbidden", f"Expected 403, got status: {response['status_code']}")
+    
+    # Test 4: Get products list
+    response = make_request("GET", "/products")
+    if response["success"] and "products" in response["data"]:
+        products = response["data"]["products"]
+        test_product_found = any(p["id"] == product_id for p in products)
+        if test_product_found:
+            results.log_pass("Get products list")
+        else:
+            results.log_fail("Get products list", "Test product not found in products list")
+    else:
+        results.log_fail("Get products list", f"Status: {response['status_code']}, Data: {response['data']}")
+    
+    # Test 5: Get single product
+    response = make_request("GET", f"/products/{product_id}")
+    if response["success"] and response["data"].get("id") == product_id:
+        results.log_pass("Get single product")
+    else:
+        results.log_fail("Get single product", f"Status: {response['status_code']}, Data: {response['data']}")
+    
+    # Test 6: Update product as admin
+    updated_data = {
+        "name": "Updated Test Product",
+        "description": "Updated description",
+        "price": 12.99,
+        "category_id": category_id,
+        "image": "https://example.com/updated.jpg",
+        "unit": "piece",
+        "stock": 75,
+        "weight": "750g"
+    }
+    
+    response = make_request("PUT", f"/products/{product_id}", updated_data, admin_auth_headers)
+    if response["success"]:
+        results.log_pass("Admin update product")
+    else:
+        results.log_fail("Admin update product", f"Status: {response['status_code']}, Data: {response['data']}")
+    
+    # Test 7: Try to update product as regular user (should fail)
+    response = make_request("PUT", f"/products/{product_id}", updated_data, user_auth_headers)
+    if not response["success"] and response["status_code"] == 403:
+        results.log_pass("User update product forbidden")
+    else:
+        results.log_fail("User update product forbidden", f"Expected 403, got status: {response['status_code']}")
+    
+    # Test 8: Verify product update
+    response = make_request("GET", f"/products/{product_id}")
+    if response["success"] and response["data"].get("name") == "Updated Test Product":
+        results.log_pass("Verify product update")
+    else:
+        results.log_fail("Verify product update", f"Product not updated correctly. Name: {response['data'].get('name')}")
+    
+    # Test 9: Try to delete product as regular user (should fail)
+    response = make_request("DELETE", f"/products/{product_id}", headers=user_auth_headers)
+    if not response["success"] and response["status_code"] == 403:
+        results.log_pass("User delete product forbidden")
+    else:
+        results.log_fail("User delete product forbidden", f"Expected 403, got status: {response['status_code']}")
+    
+    # Test 10: Delete product as admin
+    response = make_request("DELETE", f"/products/{product_id}", headers=admin_auth_headers)
+    if response["success"]:
+        results.log_pass("Admin delete product")
+    else:
+        results.log_fail("Admin delete product", f"Status: {response['status_code']}, Data: {response['data']}")
+    
+    # Test 11: Verify product deletion
+    response = make_request("GET", f"/products/{product_id}")
+    if not response["success"] and response["status_code"] == 404:
+        results.log_pass("Verify product deletion")
+    else:
+        # Check if product is marked as inactive instead of deleted
+        if response["success"] and not response["data"].get("is_active", True):
+            results.log_pass("Verify product deletion (marked inactive)")
+        else:
+            results.log_fail("Verify product deletion", f"Product still accessible after deletion. Status: {response['status_code']}")
 
 def main():
     """Main test execution"""
@@ -291,6 +410,10 @@ def main():
     # Test coupon system
     print("\n🎫 Testing Coupon System...")
     test_coupon_system(results, tokens["user"], tokens["admin"])
+    
+    # Test product management
+    print("\n📦 Testing Product Management...")
+    test_product_management(results, tokens["user"], tokens["admin"])
     
     # Print final results
     success = results.summary()

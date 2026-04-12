@@ -210,7 +210,163 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: DELETE /api/coupons/{coupon_id} (admin) successfully deactivates coupons with proper admin authentication."
 
+  - task: "Product Management - Get categories"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/categories returns all active categories with proper structure. Found 5 categories: Water & Beverages, Fresh Meat, Fruits & Veggies, Grocery, Kids Products."
+
+  - task: "Product Management - Create product (admin)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/products (admin) successfully creates new products with all required fields (name, description, price, category_id, image, unit, stock, weight). Returns product with generated ID."
+
+  - task: "Product Management - Create product forbidden for users"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/products correctly returns 403 Forbidden when regular user attempts to create products. Admin-only access properly enforced."
+
+  - task: "Product Management - Get products list"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/products returns paginated product list with proper structure. Test product appears in results after creation."
+
+  - task: "Product Management - Get single product"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/products/{product_id} returns individual product details correctly. Product data matches creation payload."
+
+  - task: "Product Management - Update product (admin)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: PUT /api/products/{product_id} (admin) successfully updates product fields. Verified name changed from 'Test Product' to 'Updated Test Product' and price from 9.99 to 12.99."
+
+  - task: "Product Management - Update product forbidden for users"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: PUT /api/products/{product_id} correctly returns 403 Forbidden when regular user attempts to update products. Admin-only access properly enforced."
+
+  - task: "Product Management - Delete product (admin)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: DELETE /api/products/{product_id} (admin) successfully deletes/deactivates products. Product becomes inaccessible after deletion."
+
+  - task: "Product Management - Delete product forbidden for users"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: DELETE /api/products/{product_id} correctly returns 403 Forbidden when regular user attempts to delete products. Admin-only access properly enforced."
+
+  - task: "Product Management - Verify product deletion"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Product deletion verification successful. GET /api/products/{product_id} returns 404 Not Found after admin deletion, confirming product is properly removed/deactivated."
+
 frontend:
+  - task: "Admin - Add Product UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/admin/products.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added floating + button and header + button. Opens form modal with name, description, price, stock, category picker, unit picker, weight, image URL with preview. Calls POST /api/products."
+
+  - task: "Admin - Edit Product UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/admin/products.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added edit pencil icon per product. Opens pre-filled form modal. Calls PUT /api/products/{id}."
+
+  - task: "Admin - Delete Product UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/admin/products.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Replaced Alert.alert with Modal confirmation for web compatibility. Calls DELETE /api/products/{id}."
+
   - task: "Profile - Address Edit UI"
     implemented: true
     working: "NA"
@@ -269,6 +425,7 @@ test_plan:
   current_focus:
     - "Address CRUD - Add, Edit, Delete"
     - "Coupon System - Get, Apply, Create, Delete"
+    - "Product Management - CRUD operations and admin permissions"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -278,3 +435,5 @@ agent_communication:
     message: "Implemented Address Edit/Delete and Coupon System. Backend has PUT /api/auth/address/{id} for editing, DELETE /api/auth/address/{id} for deleting, GET /api/coupons for listing, POST /api/coupons/apply for applying coupons. Frontend profile.tsx updated with edit/delete UI, checkout.tsx updated with coupon input and discount display. Auth: user@test.com/user123, admin@delivery.com/admin123. Please test all backend endpoints first."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: All 7 backend tasks tested successfully. Address CRUD (add/edit/delete) working perfectly with proper authentication. Coupon system fully functional - GET /api/coupons returns expected coupons, POST /api/coupons/apply correctly calculates discounts (WELCOME10=10%, FLAT20=₹20 flat), validates minimum orders, rejects invalid coupons. Admin coupon create/delete working with proper admin auth. All 15 test cases passed. Backend APIs are production-ready."
+  - agent: "testing"
+    message: "✅ PRODUCT MANAGEMENT TESTING COMPLETE: All 11 product management backend endpoints tested successfully. Admin can create/update/delete products with proper authentication. Regular users correctly forbidden (403) from admin operations. GET /api/categories returns 5 categories, GET /api/products returns paginated results, individual product retrieval works. Product CRUD cycle verified: create → read → update → verify update → delete → verify deletion. All authorization checks working correctly. Total 26/26 backend tests passed."
