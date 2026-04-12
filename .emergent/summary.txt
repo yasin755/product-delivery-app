@@ -1,0 +1,160 @@
+<analysis>**original_problem_statement**: 
+You are a senior and expert full-stack engineer and mobile architect. Build a production-ready cross-platform mobile application and backend system for a multi-category product delivery platform (similar to Zomato/BigBasket) where users can order Water, Fresh meat, Vegetables, Grocery items, and Kids products. 
+PRODUCT REQUIREMENTS: 
+1. Customer Mobile App with Auth, browsing, cart, checkout, real-time tracking.
+2. Admin Dashboard to manage products, categories, orders, and users.
+3. Backend API & DB. 
+*Note: User initially asked for Flutter/Node/Postgres, but approved the agent's default tech stack: Expo React Native, FastAPI, and MongoDB.*
+
+**User's preferred language**: English (INSTRUCT next agent to respond in English)
+
+**what currently exists?**: 
+A fully functional MVP Delivery App with an Expo React Native frontend and a FastAPI/MongoDB backend. Features include JWT authentication, product/category browsing, cart management, Stripe checkout, order history, and an Admin dashboard. Recent updates include a React Native Modal for logout, Indian Rupee (₹) currency formatting across the app, and a mandatory location permission gate on login that automatically fills the delivery address.
+
+**Last working item**: 
+- Last item agent was working: Implementing backend endpoints and seed data for Address Deletion/Editing and a Coupon/Discount system. The agent updated  but the job ended before frontend integration could be done.
+- Status: IN PROGRESS
+- Agent Testing Done: N
+- Which testing method agent to use?: both (testing agent for end-to-end checkout flow with coupons, and screenshot tool for UI verification)
+- User Testing Done: N
+
+**All Pending/In progress Issue list**:
+Issue 1: Implement Frontend UI for Address Editing/Deletion & Coupon System (P0)
+   - Attempted fixes: Agent added the backend routes and updated DB seeding in , but hasn't created the frontend components or state logic to consume these yet.
+   - Next debug checklist: 
+     - Check  to review the newly added coupon and address routes.
+     - Update  to allow deleting/editing addresses.
+     - Update  to add a coupon input field and apply discount logic.
+   - Why fix this issue and what will be achieved with the fix?: Will fulfill the user's implicit approval to add bonus features and complete the address management feature requested earlier.
+   - Status: IN PROGRESS
+   - Is recurring issue?: N
+   - Should Test frontend/backend/both after fix?: both
+   - Blocked on other issue: None
+
+**In progress Task List**:
+Task 1: Frontend implementation of Coupon/Discount system and Address Editing
+   - Where to resume: Review the latest edits in  and implement the corresponding UI in  and .
+   - What will be achieved with this?: Completion of the address management loop and addition of promo capabilities to checkout.
+   - Status: IN PROGRESS
+   - Should Test frontend/backend/both after fix?: both
+   - Blocked on something: None
+
+**Upcoming and Future Tasks**:
+Upcoming Tasks:
+- Product Ratings & Reviews functionality (P1)
+- Wishlist feature for users (P1)
+
+Future Tasks:
+- Multi-vendor support marketplace expansion (P2)
+- Replace mocked push notifications with actual Firebase Cloud Messaging (FCM) integration (P2)
+
+**Completed work in this session**:
+- Initial project scaffolding and environment setup (DONE)
+- Auth system (Login, Register) & Tab navigation (DONE)
+- Shopping core: Products, Categories, Cart, Checkout with Stripe (DONE)
+- Admin Dashboard for orders, users, and products (DONE)
+- Logout functionality fix using React Native Modals for web/mobile compatibility (DONE)
+- iOS Expo Go Async-Storage version mismatch crash fix (downgraded to 2.2.0) (DONE)
+- Currency localization (Changed $ to ₹ globally in backend and 11 frontend screens) (DONE)
+- Mandatory location access gate on app open ( integration) + auto-fill address (DONE)
+
+**Earlier issues found/mentioned but not fixed**:
+None. Agent successfully tackled all explicit user bugs.
+
+**Known issue recurrence from previous fork**:
+- Issue recurrence in previous fork: N/A (Initial phase)
+- Recurrence count: 0
+- Status: NOT STARTED
+
+**Code Architecture**:
+
+
+**Key Technical Concepts**:
+- Frontend: Expo React Native (File-based routing),  for GPS.
+- Backend: FastAPI (Python)
+- Database: MongoDB (Motor async driver)
+- Auth: Custom JWT-based authentication
+- State Management: React Context ()
+
+**key DB schema**:
+- users: {id, email, password, role, addresses (array)}
+- products: {id, category_id, name, description, price, image, is_active}
+- categories: {id, name, image, order, is_active}
+- orders: {id, user_id, items (array), total, status, address, payment_status, created_at}
+- coupons: {code, discount_percentage, max_discount, is_active}
+
+**changes in tech stack**:
+User originally requested Flutter + Node.js + PostgreSQL. Main agent explicitly gathered defaults and switched it to **Expo + FastAPI + MongoDB** per optimal system workflow limits, and user approved.
+
+**All files of reference**:
+- : Core backend logic (updated recently with coupon schemas).
+- : Contains the mandatory location gate logic.
+- : Modified for location-based address auto-fill.
+- : Wraps AsyncStorage logic to prevent crash loops.
+- : Generated by design agent.
+- : Generated PRD.
+
+**Areas that need refactoring**:
+ is becoming a monolith (~680 lines). As more features (wishlists, ratings, coupons) are fully built out, routing might need to be split into separate modular files if logic becomes too hard to manage.
+
+**key api endpoints**:
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+
+**Critical Info for New Agent**:
+- **AsyncStorage Version Lock**: Do NOT upgrade . It is intentionally downgraded to  because  throws a  error on the Expo Go app. 
+- **Web Alerts**: Avoid using  with custom buttons. They silently fail on the web preview. Use React Native  components instead (already implemented for logout).
+- **Currency**: Project uses Indian Rupee (). Do not revert to . 
+- **Location requirement**: The app has a mandatory location blocker screen if permissions are denied. Ensure any UI tests accommodate this.
+
+**documents and test reports created in this job**:
+- 
+- 
+- 
+
+**Last 10 User Messages and any pending HUMAN messages**:
+1. (User): Continue -> (Agent started implementing Coupons/Address deletion)
+2. (User): Continue
+3. (User): Continue
+4. (User): Continue
+5. (User): Continue
+6. (User): When user login, ask user for location access. if user not allowed. redirect to login page. and provide some popup info to user like order and deliver based on your location. you must give us access to location. -> (Resolved)
+7. (User): In profile page, delivery address functionality not working. -> (Resolved)
+8. (User): can you please fix the access location issue for users. -> (Resolved)
+9. (User): still app is not asking for location when user login into app. -> (Resolved)
+10. (User): when user open app, can you ask for current location and filled in address field automatically when user order product. please make sure user can change the address. -> (Resolved)
+
+**Project Health Check:**
+- Broken: None
+- Mocked: Push Notifications
+
+**3rd Party Integrations**:
+- Stripe (Payments) — uses User API Key (Test key exists in environment)
+
+**Testing status**:
+- Testing agent used after significant changes: YES
+- Troubleshoot agent used after agent stuck in loop: NO
+- Test files created: , 
+- Known regressions: None
+
+**Credentials to test flow**:
+- User:  / 
+- Admin:  / 
+
+**What agent forgot to execute**:
+The agent modified the backend to support Coupons and Address Deletion, but did not finish updating the frontend screens ( and ) to consume these endpoints before the session ended.
+
+**Debugging checklist for current issue**
+    Issue: Frontend integration missing for Coupons and Address Editing/Deletion
+    
+    Frontend files to check: 
+    -  (Needs coupon code input field, validation handler, and updated total calculation)
+    -  (Needs edit/delete icons for existing saved addresses and the respective API call logic)
+  
+    Backend files to check:
+    -  (Verify the exact payloads the new endpoints expect for coupons and address deletion)</analysis>

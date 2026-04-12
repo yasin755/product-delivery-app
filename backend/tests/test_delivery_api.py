@@ -7,7 +7,7 @@ import requests
 import os
 
 # Read from frontend .env or use default
-BASE_URL = "https://order-now-platform.preview.emergentagent.com"
+BASE_URL = "https://order-tracking-demo-2.preview.emergentagent.com"
 
 class TestHealth:
     """Basic health checks"""
