@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList, Image,
+  View, Text, Pressable, StyleSheet, FlatList, Image,
   ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -153,6 +153,11 @@ export default function AdminProducts() {
     ? products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
 
+  // iOS needs presentationStyle for transparent modals
+  const modalProps = Platform.OS === 'ios'
+    ? { presentationStyle: 'overFullScreen' as const }
+    : {};
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -167,13 +172,23 @@ export default function AdminProducts() {
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity testID="admin-products-back-btn" onPress={() => router.back()} activeOpacity={0.7}>
+        <Pressable
+          testID="admin-products-back-btn"
+          onPress={() => router.back()}
+          hitSlop={8}
+          style={styles.headerBtn}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.textMain} />
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.headerTitle}>Products ({products.length})</Text>
-        <TouchableOpacity testID="admin-add-product-btn" onPress={openAddProduct} activeOpacity={0.7}>
+        <Pressable
+          testID="admin-add-product-btn"
+          onPress={openAddProduct}
+          hitSlop={8}
+          style={styles.headerBtn}
+        >
           <Ionicons name="add-circle" size={28} color={colors.primary} />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* Search */}
@@ -188,9 +203,9 @@ export default function AdminProducts() {
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+          <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
             <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -199,6 +214,7 @@ export default function AdminProducts() {
         data={filteredProducts}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        removeClippedSubviews={false}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
@@ -206,9 +222,9 @@ export default function AdminProducts() {
               {searchQuery ? 'No matching products' : 'No products yet'}
             </Text>
             {!searchQuery && (
-              <TouchableOpacity style={styles.emptyBtn} onPress={openAddProduct} activeOpacity={0.7}>
+              <Pressable style={styles.emptyBtn} onPress={openAddProduct}>
                 <Text style={styles.emptyBtnText}>Add First Product</Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
           </View>
         }
@@ -223,53 +239,80 @@ export default function AdminProducts() {
               <Text style={styles.cardPrice}>₹{item.price?.toFixed(2)}</Text>
             </View>
             <View style={styles.cardActions}>
-              <TouchableOpacity
+              <Pressable
                 testID={`admin-edit-product-${item.id}`}
-                style={styles.cardActionBtn}
+                style={({ pressed }) => [
+                  styles.cardActionBtn,
+                  pressed && { opacity: 0.6, backgroundColor: colors.primaryLight },
+                ]}
                 onPress={() => openEditProduct(item)}
-                activeOpacity={0.7}
+                hitSlop={6}
               >
-                <Ionicons name="create-outline" size={18} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity
+                <Ionicons name="create-outline" size={20} color={colors.primary} />
+              </Pressable>
+              <Pressable
                 testID={`admin-delete-product-${item.id}`}
-                style={styles.cardActionBtn}
+                style={({ pressed }) => [
+                  styles.cardActionBtn,
+                  pressed && { opacity: 0.6, backgroundColor: '#FEE2E2' },
+                ]}
                 onPress={() => confirmDelete(item)}
-                activeOpacity={0.7}
+                hitSlop={6}
               >
-                <Ionicons name="trash-outline" size={18} color={colors.error} />
-              </TouchableOpacity>
+                <Ionicons name="trash-outline" size={20} color={colors.error} />
+              </Pressable>
             </View>
           </View>
         )}
       />
 
       {/* Floating Add Button */}
-      <TouchableOpacity
+      <Pressable
         testID="admin-fab-add-product"
-        style={styles.fab}
+        style={({ pressed }) => [
+          styles.fab,
+          pressed && { opacity: 0.8, transform: [{ scale: 0.95 }] },
+        ]}
         onPress={openAddProduct}
-        activeOpacity={0.8}
       >
         <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      </Pressable>
 
       {/* Add/Edit Product Modal */}
-      <Modal visible={showFormModal} transparent animationType="slide" onRequestClose={() => setShowFormModal(false)}>
+      <Modal
+        visible={showFormModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFormModal(false)}
+        {...modalProps}
+      >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalWrap}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalWrap}
+          >
             <View style={styles.modalBox}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {editingProductId ? 'Edit Product' : 'Add New Product'}
                 </Text>
-                <TouchableOpacity testID="close-product-modal" onPress={() => { setShowFormModal(false); setEditingProductId(null); }}>
+                <Pressable
+                  testID="close-product-modal"
+                  onPress={() => { setShowFormModal(false); setEditingProductId(null); }}
+                  hitSlop={10}
+                  style={styles.closeBtn}
+                >
                   <Ionicons name="close" size={24} color={colors.textMain} />
-                </TouchableOpacity>
+                </Pressable>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1 }}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+              >
                 {/* Name */}
                 <Text style={styles.fieldLabel}>Product Name *</Text>
                 <TextInput
@@ -325,31 +368,35 @@ export default function AdminProducts() {
 
                 {/* Category Picker */}
                 <Text style={styles.fieldLabel}>Category *</Text>
-                <TouchableOpacity
+                <Pressable
                   testID="product-category-picker"
-                  style={styles.pickerBtn}
+                  style={({ pressed }) => [
+                    styles.pickerBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
                   onPress={() => setShowCategoryPicker(true)}
-                  activeOpacity={0.7}
                 >
                   <Text style={[styles.pickerBtnText, !form.category_id && { color: colors.textMuted }]}>
                     {form.category_id ? getCategoryName(form.category_id) : 'Select category'}
                   </Text>
                   <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-                </TouchableOpacity>
+                </Pressable>
 
                 {/* Unit & Weight */}
                 <View style={styles.fieldRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Unit</Text>
-                    <TouchableOpacity
+                    <Pressable
                       testID="product-unit-picker"
-                      style={styles.pickerBtn}
+                      style={({ pressed }) => [
+                        styles.pickerBtn,
+                        pressed && { opacity: 0.7 },
+                      ]}
                       onPress={() => setShowUnitPicker(true)}
-                      activeOpacity={0.7}
                     >
                       <Text style={styles.pickerBtnText}>{form.unit}</Text>
                       <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Weight</Text>
@@ -388,12 +435,15 @@ export default function AdminProducts() {
                 )}
 
                 {/* Save Button */}
-                <TouchableOpacity
+                <Pressable
                   testID="save-product-btn"
-                  style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+                  style={({ pressed }) => [
+                    styles.saveBtn,
+                    saving && { opacity: 0.6 },
+                    pressed && { opacity: 0.8 },
+                  ]}
                   onPress={handleSave}
                   disabled={saving}
-                  activeOpacity={0.7}
                 >
                   {saving ? (
                     <ActivityIndicator color="#fff" />
@@ -402,9 +452,9 @@ export default function AdminProducts() {
                       {editingProductId ? 'Update Product' : 'Add Product'}
                     </Text>
                   )}
-                </TouchableOpacity>
+                </Pressable>
 
-                <View style={{ height: spacing.lg }} />
+                <View style={{ height: spacing.xxl }} />
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
@@ -412,9 +462,15 @@ export default function AdminProducts() {
       </Modal>
 
       {/* Delete Confirmation Modal */}
-      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
-        <View style={styles.deleteOverlay}>
-          <View style={styles.deleteBox}>
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+        {...modalProps}
+      >
+        <Pressable style={styles.deleteOverlay} onPress={() => { setShowDeleteModal(false); setDeleteTarget(null); }}>
+          <Pressable style={styles.deleteBox} onPress={(e) => e.stopPropagation()}>
             <View style={styles.deleteIconWrap}>
               <Ionicons name="trash-outline" size={32} color={colors.error} />
             </View>
@@ -423,83 +479,99 @@ export default function AdminProducts() {
               Are you sure you want to delete "{deleteTarget?.name}"? This action cannot be undone.
             </Text>
             <View style={styles.deleteActions}>
-              <TouchableOpacity
+              <Pressable
                 testID="cancel-delete-btn"
-                style={styles.deleteCancelBtn}
+                style={({ pressed }) => [styles.deleteCancelBtn, pressed && { opacity: 0.7 }]}
                 onPress={() => { setShowDeleteModal(false); setDeleteTarget(null); }}
-                activeOpacity={0.7}
               >
                 <Text style={styles.deleteCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Pressable>
+              <Pressable
                 testID="confirm-delete-btn"
-                style={styles.deleteConfirmBtn}
+                style={({ pressed }) => [styles.deleteConfirmBtn, pressed && { opacity: 0.7 }]}
                 onPress={handleDelete}
-                activeOpacity={0.7}
               >
                 <Text style={styles.deleteConfirmText}>Delete</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Unit Picker Modal */}
-      <Modal visible={showUnitPicker} transparent animationType="fade" onRequestClose={() => setShowUnitPicker(false)}>
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerBox}>
+      <Modal
+        visible={showUnitPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowUnitPicker(false)}
+        {...modalProps}
+      >
+        <Pressable style={styles.pickerOverlay} onPress={() => setShowUnitPicker(false)}>
+          <Pressable style={styles.pickerBox} onPress={(e) => e.stopPropagation()}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Unit</Text>
-              <TouchableOpacity onPress={() => setShowUnitPicker(false)}>
+              <Pressable onPress={() => setShowUnitPicker(false)} hitSlop={10} style={styles.closeBtn}>
                 <Ionicons name="close" size={24} color={colors.textMain} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
-            <ScrollView>
+            <ScrollView bounces={false}>
               {UNIT_OPTIONS.map((unit) => (
-                <TouchableOpacity
+                <Pressable
                   key={unit}
-                  style={[styles.pickerOption, form.unit === unit && styles.pickerOptionActive]}
+                  style={({ pressed }) => [
+                    styles.pickerOption,
+                    form.unit === unit && styles.pickerOptionActive,
+                    pressed && { opacity: 0.7 },
+                  ]}
                   onPress={() => { setForm({ ...form, unit }); setShowUnitPicker(false); }}
-                  activeOpacity={0.7}
                 >
                   <Text style={[styles.pickerOptionText, form.unit === unit && styles.pickerOptionTextActive]}>
                     {unit}
                   </Text>
                   {form.unit === unit && <Ionicons name="checkmark" size={20} color={colors.primary} />}
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </ScrollView>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Category Picker Modal */}
-      <Modal visible={showCategoryPicker} transparent animationType="fade" onRequestClose={() => setShowCategoryPicker(false)}>
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerBox}>
+      <Modal
+        visible={showCategoryPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCategoryPicker(false)}
+        {...modalProps}
+      >
+        <Pressable style={styles.pickerOverlay} onPress={() => setShowCategoryPicker(false)}>
+          <Pressable style={styles.pickerBox} onPress={(e) => e.stopPropagation()}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Category</Text>
-              <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
+              <Pressable onPress={() => setShowCategoryPicker(false)} hitSlop={10} style={styles.closeBtn}>
                 <Ionicons name="close" size={24} color={colors.textMain} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
-            <ScrollView>
+            <ScrollView bounces={false}>
               {categories.map((cat) => (
-                <TouchableOpacity
+                <Pressable
                   key={cat.id}
-                  style={[styles.pickerOption, form.category_id === cat.id && styles.pickerOptionActive]}
+                  style={({ pressed }) => [
+                    styles.pickerOption,
+                    form.category_id === cat.id && styles.pickerOptionActive,
+                    pressed && { opacity: 0.7 },
+                  ]}
                   onPress={() => { setForm({ ...form, category_id: cat.id }); setShowCategoryPicker(false); }}
-                  activeOpacity={0.7}
                 >
                   <Text style={[styles.pickerOptionText, form.category_id === cat.id && styles.pickerOptionTextActive]}>
                     {cat.name}
                   </Text>
                   {form.category_id === cat.id && <Ionicons name="checkmark" size={20} color={colors.primary} />}
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </ScrollView>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -514,6 +586,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: colors.textMain },
+  headerBtn: {
+    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
+  },
+  closeBtn: {
+    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
+  },
   // Search
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -534,9 +612,9 @@ const styles = StyleSheet.create({
   cardName: { fontSize: 15, fontWeight: '600', color: colors.textMain },
   cardCategory: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   cardPrice: { fontSize: 15, fontWeight: '700', color: colors.primary, marginTop: 2 },
-  cardActions: { flexDirection: 'row', gap: spacing.xs },
+  cardActions: { flexDirection: 'row', gap: spacing.sm },
   cardActionBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: colors.surfaceAlt, justifyContent: 'center', alignItems: 'center',
   },
   // FAB
@@ -544,6 +622,7 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 24, right: 20,
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center',
+    zIndex: 999, elevation: 8,
     ...shadows.md,
   },
   // Empty
