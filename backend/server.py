@@ -12,6 +12,14 @@ import uuid
 from datetime import datetime, timezone
 import jwt
 import bcrypt
+import asyncio
+import ssl
+
+try:
+    import certifi
+except ImportError:
+    certifi = None
+
 from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 )
@@ -20,7 +28,17 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+
+ca_file = certifi.where() if certifi else ssl.get_default_verify_paths().cafile
+
+client = AsyncIOMotorClient(
+    mongo_url,
+    tls=True,
+    tlsCAFile=ca_file,
+    serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
+    connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
+    socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
+)
 db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'delivery-app-secret')
@@ -171,6 +189,84 @@ async def add_address(address: AddressModel, user=Depends(get_current_user)):
     addr_dict = address.dict()
     await db.users.update_one({'id': user['id']}, {'$push': {'addresses': addr_dict}})
     return {'message': 'Address added', 'address': addr_dict}
+
+@api_router.put("/auth/address/{address_id}")
+async def update_address(address_id: str, address: AddressModel, user=Depends(get_current_user)):
+    addr_dict = address.dict()
+    addr_dict['id'] = address_id
+    result = await db.users.update_one(
+        {'id': user['id'], 'addresses.id': address_id},
+        {'$set': {'addresses.$': addr_dict}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Address not found')
+    return {'message': 'Address updated', 'address': addr_dict}
+
+@api_router.delete("/auth/address/{address_id}")
+async def delete_address(address_id: str, user=Depends(get_current_user)):
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$pull': {'addresses': {'id': address_id}}}
+    )
+    return {'message': 'Address deleted'}
+
+# ---- Coupon Routes ----
+
+class CouponCreate(BaseModel):
+    code: str
+    discount_type: str = "percentage"  # percentage or flat
+    discount_value: float = 10
+    min_order: float = 0
+    max_discount: float = 0
+    is_active: bool = True
+
+class CouponApply(BaseModel):
+    code: str
+    cart_total: float
+
+@api_router.get("/coupons")
+async def get_coupons():
+    coupons = await db.coupons.find({'is_active': True}, {'_id': 0}).to_list(50)
+    return coupons
+
+@api_router.post("/coupons")
+async def create_coupon(data: CouponCreate, user=Depends(get_admin_user)):
+    existing = await db.coupons.find_one({'code': data.code.upper()})
+    if existing:
+        raise HTTPException(status_code=400, detail='Coupon code already exists')
+    coupon = {
+        'id': str(uuid.uuid4()), 'code': data.code.upper(),
+        'discount_type': data.discount_type, 'discount_value': data.discount_value,
+        'min_order': data.min_order, 'max_discount': data.max_discount,
+        'is_active': data.is_active, 'usage_count': 0,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.coupons.insert_one(coupon)
+    return {k: v for k, v in coupon.items() if k != '_id'}
+
+@api_router.post("/coupons/apply")
+async def apply_coupon(data: CouponApply, user=Depends(get_current_user)):
+    coupon = await db.coupons.find_one({'code': data.code.upper(), 'is_active': True}, {'_id': 0})
+    if not coupon:
+        raise HTTPException(status_code=404, detail='Invalid or expired coupon')
+    if data.cart_total < coupon.get('min_order', 0):
+        raise HTTPException(status_code=400, detail=f"Minimum order ₹{coupon['min_order']} required")
+    if coupon['discount_type'] == 'percentage':
+        discount = round(data.cart_total * coupon['discount_value'] / 100, 2)
+        if coupon.get('max_discount') and coupon['max_discount'] > 0:
+            discount = min(discount, coupon['max_discount'])
+    else:
+        discount = coupon['discount_value']
+    discount = min(discount, data.cart_total)
+    return {
+        'coupon': coupon, 'discount': round(discount, 2),
+        'final_total': round(data.cart_total - discount, 2)
+    }
+
+@api_router.delete("/coupons/{coupon_id}")
+async def delete_coupon(coupon_id: str, user=Depends(get_admin_user)):
+    await db.coupons.update_one({'id': coupon_id}, {'$set': {'is_active': False}})
+    return {'message': 'Coupon deleted'}
 
 # ---- Category Routes ----
 
@@ -579,6 +675,17 @@ async def seed_database():
     await db.orders.create_index('id', unique=True)
     await db.carts.create_index('user_id', unique=True)
     await db.payment_transactions.create_index('session_id')
+    await db.coupons.create_index('code', unique=True)
+    await db.coupons.create_index('id', unique=True)
+
+    # Seed coupons
+    coupons = [
+        {'id': str(uuid.uuid4()), 'code': 'WELCOME10', 'discount_type': 'percentage', 'discount_value': 10, 'min_order': 5, 'max_discount': 50, 'is_active': True, 'usage_count': 0, 'created_at': datetime.now(timezone.utc).isoformat()},
+        {'id': str(uuid.uuid4()), 'code': 'FLAT20', 'discount_type': 'flat', 'discount_value': 20, 'min_order': 30, 'max_discount': 0, 'is_active': True, 'usage_count': 0, 'created_at': datetime.now(timezone.utc).isoformat()},
+        {'id': str(uuid.uuid4()), 'code': 'FRESH15', 'discount_type': 'percentage', 'discount_value': 15, 'min_order': 10, 'max_discount': 100, 'is_active': True, 'usage_count': 0, 'created_at': datetime.now(timezone.utc).isoformat()},
+    ]
+    await db.coupons.insert_many(coupons)
+
     return True
 
 @api_router.post("/seed")
@@ -602,8 +709,16 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     logger.info("Starting delivery app backend...")
-    await seed_database()
-    logger.info("Database seeded (if needed)")
+    try:
+        # Try to seed database with a 5 second timeout
+        await asyncio.wait_for(seed_database(), timeout=5)
+        logger.info("Database seeded (if needed)")
+    except asyncio.TimeoutError:
+        logger.warning("Database seeding timed out - MongoDB may not be available")
+        logger.info("Server is starting without database seeding")
+    except Exception as e:
+        logger.warning(f"Could not seed database: {e}")
+        logger.info("Server is starting without database seeding")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
