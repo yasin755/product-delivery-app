@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any
 
 # Configuration
-BASE_URL = "https://order-tracking-demo-2.preview.emergentagent.com/api"
+BASE_URL = "https://git-runner-5.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 # Test credentials

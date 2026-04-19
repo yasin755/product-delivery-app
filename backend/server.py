@@ -29,16 +29,26 @@ load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
 
-ca_file = certifi.where() if certifi else ssl.get_default_verify_paths().cafile
+# Determine if TLS is needed based on the connection string
+use_tls = 'mongodb+srv' in mongo_url or 'tls=true' in mongo_url.lower() or 'ssl=true' in mongo_url.lower()
 
-client = AsyncIOMotorClient(
-    mongo_url,
-    tls=True,
-    tlsCAFile=ca_file,
-    serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
-    connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
-    socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
-)
+if use_tls:
+    ca_file = certifi.where() if certifi else ssl.get_default_verify_paths().cafile
+    client = AsyncIOMotorClient(
+        mongo_url,
+        tls=True,
+        tlsCAFile=ca_file,
+        serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
+        connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
+        socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
+    )
+else:
+    client = AsyncIOMotorClient(
+        mongo_url,
+        serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
+        connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
+        socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
+    )
 db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'delivery-app-secret')
