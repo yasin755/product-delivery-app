@@ -634,12 +634,11 @@ const styles = StyleSheet.create({
   },
   emptyBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   // Form Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalWrap: { maxHeight: '92%' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-start', paddingTop: spacing.lg, paddingHorizontal: spacing.md },
+  modalWrap: { flex: 1, width: '100%', maxHeight: '85%' },
   modalBox: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg,
-    padding: spacing.lg, maxHeight: '100%',
+    flex: 1, backgroundColor: colors.surface, borderRadius: radii.lg,
+    padding: spacing.lg,
   },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
