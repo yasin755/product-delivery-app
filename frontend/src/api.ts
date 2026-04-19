@@ -1,6 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+// Android emulator uses 10.0.2.2 as an alias to reach the host machine
+// Physical Android devices should use the actual machine IP
+const calculateApiBase = () => {
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:8000';
+  }
+  return process.env.EXPO_PUBLIC_BACKEND_URL || '';
+};
+
+const API_BASE = calculateApiBase();
 
 async function getHeaders(): Promise<Record<string, string>> {
   const token = await AsyncStorage.getItem('auth_token');

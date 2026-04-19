@@ -12,6 +12,14 @@ import uuid
 from datetime import datetime, timezone
 import jwt
 import bcrypt
+import asyncio
+import ssl
+
+try:
+    import certifi
+except ImportError:
+    certifi = None
+
 from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 )
@@ -20,7 +28,17 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+
+ca_file = certifi.where() if certifi else ssl.get_default_verify_paths().cafile
+
+client = AsyncIOMotorClient(
+    mongo_url,
+    tls=True,
+    tlsCAFile=ca_file,
+    serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
+    connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
+    socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
+)
 db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'delivery-app-secret')
@@ -691,8 +709,16 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     logger.info("Starting delivery app backend...")
-    await seed_database()
-    logger.info("Database seeded (if needed)")
+    try:
+        # Try to seed database with a 5 second timeout
+        await asyncio.wait_for(seed_database(), timeout=5)
+        logger.info("Database seeded (if needed)")
+    except asyncio.TimeoutError:
+        logger.warning("Database seeding timed out - MongoDB may not be available")
+        logger.info("Server is starting without database seeding")
+    except Exception as e:
+        logger.warning(f"Could not seed database: {e}")
+        logger.info("Server is starting without database seeding")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

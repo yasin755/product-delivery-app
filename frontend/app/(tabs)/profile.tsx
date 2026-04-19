@@ -165,7 +165,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             {addresses.map((addr, i) => (
-              <View key={addr.id || i} testID={`saved-address-${i}`} style={styles.addressCard}>
+              <TouchableOpacity key={addr.id || i} testID={`saved-address-${i}`} onPress={() => openEditAddress(addr)} activeOpacity={0.7} style={styles.addressCard}>
                 <View style={styles.addressIconWrap}>
                   <Ionicons name={addr.label?.toLowerCase() === 'work' ? 'briefcase' : addr.label?.toLowerCase() === 'home' ? 'home' : 'location'} size={20} color={colors.primary} />
                 </View>
@@ -183,7 +183,7 @@ export default function ProfileScreen() {
                     <Ionicons name="trash-outline" size={18} color={colors.error} />
                   </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -382,9 +382,9 @@ const styles = StyleSheet.create({
   modalConfirmBtn: { flex: 1, height: 48, borderRadius: radii.pill, backgroundColor: colors.error, justifyContent: 'center', alignItems: 'center' },
   modalConfirmText: { fontSize: 15, fontWeight: '600', color: '#fff' },
   // Address Modal
-  addrModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  addrModalWrap: { maxHeight: '90%' },
-  addrModalBox: { backgroundColor: colors.surface, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg, padding: spacing.lg, maxHeight: '100%' },
+  addrModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-start', paddingTop: spacing.lg, paddingHorizontal: spacing.md },
+  addrModalWrap: { flex: 1, width: '100%', maxHeight: '85%' },
+  addrModalBox: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg },
   addrModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   addrModalTitle: { fontSize: 20, fontWeight: '700', color: colors.textMain },
   detectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primaryLight, borderRadius: radii.md, paddingVertical: 12, marginBottom: spacing.md },
