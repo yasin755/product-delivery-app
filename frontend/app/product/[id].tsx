@@ -13,6 +13,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -28,15 +29,17 @@ export default function ProductDetailScreen() {
     setAdding(true);
     try {
       await api('/api/cart/add', { method: 'POST', body: JSON.stringify({ product_id: id, quantity }) });
-      Alert.alert('Added to Cart', `${product.name} x${quantity} added!`, [
-        { text: 'Continue Shopping', style: 'cancel' },
-        { text: 'Go to Cart', onPress: () => router.push('/(tabs)/cart') },
-      ]);
+      setAddedToCart(true);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to add to cart');
     } finally {
       setAdding(false);
     }
+  }
+
+  function handleAddMore() {
+    setAddedToCart(false);
+    setQuantity(1);
   }
 
   if (loading) {
@@ -104,26 +107,61 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       {/* Bottom Bar */}
-      <View style={styles.bottomBar}>
-        <View>
-          <Text style={styles.bottomLabel}>Total</Text>
-          <Text style={styles.bottomPrice}>₹{(product.price * quantity).toFixed(2)}</Text>
-        </View>
-        <TouchableOpacity
-          testID="product-add-to-cart-btn"
-          style={[styles.addCartBtn, product.stock <= 0 && { opacity: 0.5 }]}
-          onPress={addToCart}
-          disabled={adding || product.stock <= 0}
-          activeOpacity={0.7}
-        >
-          {adding ? <ActivityIndicator color="#fff" /> : (
-            <>
+      {addedToCart ? (
+        <View style={styles.bottomBar}>
+          <View style={styles.addedSuccessRow}>
+            <View style={styles.addedCheckWrap}>
+              <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addedTitle}>Added to Cart!</Text>
+              <Text style={styles.addedSubtitle}>{product.name} x{quantity}</Text>
+            </View>
+          </View>
+          <View style={styles.addedActions}>
+            <TouchableOpacity
+              testID="product-add-more-btn"
+              style={styles.addMoreBtn}
+              onPress={handleAddMore}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+              <Text style={styles.addMoreText}>Add More</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="product-go-to-cart-btn"
+              style={styles.goToCartBtn}
+              onPress={() => router.push('/(tabs)/cart')}
+              activeOpacity={0.7}
+            >
               <Ionicons name="cart" size={20} color="#fff" />
-              <Text style={styles.addCartText}>Add to Cart</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+              <Text style={styles.goToCartText}>Go to Cart</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={[styles.bottomBar, styles.bottomBarRow]}>
+          <View>
+            <Text style={styles.bottomLabel}>Total</Text>
+            <Text style={styles.bottomPrice}>₹{(product.price * quantity).toFixed(2)}</Text>
+          </View>
+          <TouchableOpacity
+            testID="product-add-to-cart-btn"
+            style={[styles.addCartBtn, product.stock <= 0 && { opacity: 0.5 }]}
+            onPress={addToCart}
+            disabled={adding || product.stock <= 0}
+            activeOpacity={0.7}
+          >
+            {adding ? <ActivityIndicator color="#fff" /> : (
+              <>
+                <Ionicons name="cart" size={20} color="#fff" />
+                <Text style={styles.addCartText}>Add to Cart</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -152,9 +190,20 @@ const styles = StyleSheet.create({
   qtyValue: { fontSize: 20, fontWeight: '700', color: colors.textMain, minWidth: 30, textAlign: 'center' },
   stockBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.secondaryLight, borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 6, marginTop: spacing.md, alignSelf: 'flex-start' },
   stockText: { fontSize: 13, fontWeight: '500', color: colors.secondary },
-  bottomBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  bottomBar: { padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  bottomBarRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bottomLabel: { fontSize: 13, color: colors.textMuted },
   bottomPrice: { fontSize: 22, fontWeight: '700', color: colors.textMain },
   addCartBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.primary, borderRadius: radii.pill, paddingHorizontal: spacing.xl, height: 52 },
   addCartText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  // Added to cart success state
+  addedSuccessRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  addedCheckWrap: { marginRight: spacing.sm },
+  addedTitle: { fontSize: 16, fontWeight: '700', color: colors.success },
+  addedSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 1 },
+  addedActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  addMoreBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface },
+  addMoreText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  goToCartBtn: { flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: radii.pill, backgroundColor: colors.primary },
+  goToCartText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
