@@ -330,6 +330,30 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Product deletion verification successful. GET /api/products/{product_id} returns 404 Not Found after admin deletion, confirming product is properly removed/deactivated."
 
+  - task: "Push Notifications - Register push token"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/auth/push-token successfully registers push tokens for both admin and user accounts. Supports upsert functionality - duplicate token registration updates existing record without error. Proper authentication required via Bearer token."
+
+  - task: "Push Notifications - Remove push token"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: DELETE /api/auth/push-token successfully removes push tokens. Requires JSON body with token field and proper authentication. Returns 'Push token removed' message on success."
+
 frontend:
   - task: "Admin - Add Product UI"
     implemented: true
@@ -437,3 +461,5 @@ agent_communication:
     message: "✅ BACKEND TESTING COMPLETE: All 7 backend tasks tested successfully. Address CRUD (add/edit/delete) working perfectly with proper authentication. Coupon system fully functional - GET /api/coupons returns expected coupons, POST /api/coupons/apply correctly calculates discounts (WELCOME10=10%, FLAT20=₹20 flat), validates minimum orders, rejects invalid coupons. Admin coupon create/delete working with proper admin auth. All 15 test cases passed. Backend APIs are production-ready."
   - agent: "testing"
     message: "✅ PRODUCT MANAGEMENT TESTING COMPLETE: All 11 product management backend endpoints tested successfully. Admin can create/update/delete products with proper authentication. Regular users correctly forbidden (403) from admin operations. GET /api/categories returns 5 categories, GET /api/products returns paginated results, individual product retrieval works. Product CRUD cycle verified: create → read → update → verify update → delete → verify deletion. All authorization checks working correctly. Total 26/26 backend tests passed."
+  - agent: "testing"
+    message: "✅ PUSH NOTIFICATION TESTING COMPLETE: All push notification backend endpoints tested successfully. POST /api/auth/push-token registers tokens for both admin and user accounts with proper authentication. Supports upsert functionality - duplicate registrations update existing records. DELETE /api/auth/push-token removes tokens correctly with JSON body containing token field. All test scenarios from review request passed: admin token registration, user token registration, duplicate token handling, and token removal. Backend logs confirm proper token storage and user role tracking. Total 32/32 backend tests passed."
