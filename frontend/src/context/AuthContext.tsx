@@ -52,12 +52,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function login(email: string, password: string) {
-    const data = await api<{ token: string; user: User }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    try { await AsyncStorage.setItem('auth_token', data.token); } catch (e) { console.warn('Storage error:', e); }
-    setUser(data.user);
+    try {
+      console.log('[AuthContext] Attempting login with email:', email);
+      const data = await api<{ token: string; user: User }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      console.log('[AuthContext] Login successful, user:', data.user);
+      try { await AsyncStorage.setItem('auth_token', data.token); } catch (e) { console.warn('Storage error:', e); }
+      setUser(data.user);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[AuthContext] Login failed:', message);
+      throw error;
+    }
   }
 
   async function register(name: string, email: string, phone: string, password: string) {

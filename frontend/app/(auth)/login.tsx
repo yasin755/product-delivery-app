@@ -5,14 +5,17 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { colors, spacing, radii } from '../../src/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { getApiBase } from '../../src/api';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+  const apiBase = getApiBase();
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
@@ -21,10 +24,15 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
+      console.log('[LoginScreen] Starting login...');
+      console.log('[LoginScreen] Using API base:', apiBase);
       await login(email.trim(), password);
+      console.log('[LoginScreen] Login successful, navigating to home');
       router.replace('/(tabs)');
     } catch (e: any) {
-      Alert.alert('Login Failed', e.message || 'Invalid credentials');
+      const errorMessage = e?.message || 'Invalid credentials';
+      console.error('[LoginScreen] Login error:', errorMessage);
+      Alert.alert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -97,6 +105,17 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
+            <TouchableOpacity onPress={() => setShowDebugInfo(!showDebugInfo)} style={styles.debugToggle}>
+              <Text style={styles.debugToggleText}>Debug Info</Text>
+            </TouchableOpacity>
+            
+            {showDebugInfo && (
+              <View style={styles.debugBox}>
+                <Text style={styles.debugLabel}>Backend URL:</Text>
+                <Text style={styles.debugValue}>{apiBase}</Text>
+              </View>
+            )}
+
             <TouchableOpacity testID="goto-register-btn" onPress={() => router.push('/(auth)/register')} style={styles.linkBtn} activeOpacity={0.7}>
               <Text style={styles.linkText}>Don't have an account? <Text style={styles.linkBold}>Sign Up</Text></Text>
             </TouchableOpacity>
@@ -128,6 +147,11 @@ const styles = StyleSheet.create({
   demoTitle: { fontSize: 14, fontWeight: '600', color: colors.textMain, marginBottom: spacing.sm },
   demoBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   demoBtnText: { fontSize: 13, color: colors.textMuted },
+  debugToggle: { alignItems: 'center', marginTop: spacing.md, paddingVertical: spacing.sm },
+  debugToggleText: { fontSize: 12, color: colors.primary, fontWeight: '500' },
+  debugBox: { backgroundColor: colors.surfaceAlt, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md, borderLeftWidth: 3, borderLeftColor: colors.primary },
+  debugLabel: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: spacing.xs },
+  debugValue: { fontSize: 12, color: colors.textMain, fontFamily: 'monospace' },
   linkBtn: { alignItems: 'center', marginTop: spacing.lg, paddingVertical: spacing.md },
   linkText: { fontSize: 14, color: colors.textMuted },
   linkBold: { color: colors.primary, fontWeight: '600' },
