@@ -11,7 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Detect your location for delivery address"
+        "NSLocationWhenInUseUsageDescription": "Detect your location for delivery address",
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -29,6 +30,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#FF6B00",
+          "sounds": []
+        }
+      ],
       [
         "expo-splash-screen",
         {

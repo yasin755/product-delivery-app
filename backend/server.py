@@ -14,6 +14,7 @@ import jwt
 import bcrypt
 import asyncio
 import ssl
+import httpx
 
 try:
     import certifi
@@ -29,16 +30,26 @@ load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
 
-ca_file = certifi.where() if certifi else ssl.get_default_verify_paths().cafile
+# Determine if TLS is needed based on the connection string
+use_tls = 'mongodb+srv' in mongo_url or 'tls=true' in mongo_url.lower() or 'ssl=true' in mongo_url.lower()
 
-client = AsyncIOMotorClient(
-    mongo_url,
-    tls=True,
-    tlsCAFile=ca_file,
-    serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
-    connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
-    socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
-)
+if use_tls:
+    ca_file = certifi.where() if certifi else ssl.get_default_verify_paths().cafile
+    client = AsyncIOMotorClient(
+        mongo_url,
+        tls=True,
+        tlsCAFile=ca_file,
+        serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
+        connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
+        socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
+    )
+else:
+    client = AsyncIOMotorClient(
+        mongo_url,
+        serverSelectionTimeoutMS=int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '10000')),
+        connectTimeoutMS=int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '10000')),
+        socketTimeoutMS=int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000')),
+    )
 db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'delivery-app-secret')
@@ -103,6 +114,55 @@ class OrderCreate(BaseModel):
 
 class OrderStatusUpdate(BaseModel):
     status: str
+
+class PushTokenRegister(BaseModel):
+    token: str
+    device_name: str = ""
+
+# ---- Push Notification Helper ----
+
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+async def send_push_to_admins(title: str, body: str, data: dict = None):
+    """Send push notification to all admin users who have registered push tokens."""
+    try:
+        admin_tokens = await db.push_tokens.find({'role': 'admin'}, {'_id': 0}).to_list(100)
+        if not admin_tokens:
+            logger.info("No admin push tokens found, skipping notification")
+            return
+
+        messages = []
+        for token_doc in admin_tokens:
+            token = token_doc.get('token', '')
+            if token and token.startswith('ExponentPushToken'):
+                message = {
+                    "to": token,
+                    "sound": "default",
+                    "title": title,
+                    "body": body,
+                    "priority": "high",
+                }
+                if data:
+                    message["data"] = data
+                messages.append(message)
+
+        if not messages:
+            logger.info("No valid Expo push tokens found")
+            return
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                EXPO_PUSH_URL,
+                json=messages,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                timeout=10.0,
+            )
+            logger.info(f"Push notification sent: {response.status_code} - {response.text[:200]}")
+    except Exception as e:
+        logger.error(f"Push notification error: {e}")
 
 # ---- Auth Helpers ----
 
@@ -209,6 +269,35 @@ async def delete_address(address_id: str, user=Depends(get_current_user)):
         {'$pull': {'addresses': {'id': address_id}}}
     )
     return {'message': 'Address deleted'}
+
+# ---- Push Notification Token Routes ----
+
+@api_router.post("/auth/push-token")
+async def register_push_token(data: PushTokenRegister, user=Depends(get_current_user)):
+    """Register an Expo push token for the current user."""
+    if not data.token:
+        raise HTTPException(status_code=400, detail='Push token is required')
+
+    # Upsert: update if token exists, otherwise insert
+    await db.push_tokens.update_one(
+        {'token': data.token},
+        {'$set': {
+            'token': data.token,
+            'user_id': user['id'],
+            'role': user['role'],
+            'device_name': data.device_name,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    logger.info(f"Push token registered for user {user['id']} (role: {user['role']})")
+    return {'message': 'Push token registered'}
+
+@api_router.delete("/auth/push-token")
+async def remove_push_token(data: PushTokenRegister, user=Depends(get_current_user)):
+    """Remove a push token (e.g., on logout)."""
+    await db.push_tokens.delete_one({'token': data.token, 'user_id': user['id']})
+    return {'message': 'Push token removed'}
 
 # ---- Coupon Routes ----
 
@@ -462,6 +551,14 @@ async def create_order(data: OrderCreate, request: Request, user=Depends(get_cur
     # Clear cart
     await db.carts.delete_one({'user_id': user['id']})
 
+    # Send push notification to admins about new order
+    item_count = sum(item['quantity'] for item in order_items)
+    asyncio.create_task(send_push_to_admins(
+        title="🛒 New Order Received!",
+        body=f"{user['name']} placed an order for ₹{total:.2f} ({item_count} items)",
+        data={"order_id": order_id, "type": "new_order"}
+    ))
+
     return {'order_id': order_id, 'checkout_url': session.url, 'session_id': session.session_id}
 
 @api_router.get("/orders")
@@ -516,6 +613,14 @@ async def get_payment_status(session_id: str, request: Request):
                     {'$set': {'payment_status': 'paid', 'status': 'confirmed',
                               'updated_at': datetime.now(timezone.utc).isoformat()}}
                 )
+                # Notify admins about payment confirmation
+                order = await db.orders.find_one({'id': order_id}, {'_id': 0})
+                if order:
+                    asyncio.create_task(send_push_to_admins(
+                        title="💰 Payment Confirmed!",
+                        body=f"Order #{order_id[:8]} by {order.get('user_name', 'Customer')} - ₹{order.get('total', 0):.2f} paid",
+                        data={"order_id": order_id, "type": "payment_confirmed"}
+                    ))
 
     return {
         'status': checkout_status.status, 'payment_status': checkout_status.payment_status,

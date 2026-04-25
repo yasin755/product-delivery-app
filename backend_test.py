@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any
 
 # Configuration
-BASE_URL = "https://order-tracking-demo-2.preview.emergentagent.com/api"
+BASE_URL = "https://git-runner-5.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 # Test credentials
@@ -58,7 +58,7 @@ def make_request(method: str, endpoint: str, data: Dict = None, headers: Dict = 
         elif method.upper() == "PUT":
             response = requests.put(url, json=data, headers=req_headers)
         elif method.upper() == "DELETE":
-            response = requests.delete(url, headers=req_headers)
+            response = requests.delete(url, json=data, headers=req_headers)
         else:
             raise ValueError(f"Unsupported method: {method}")
             
@@ -387,6 +387,63 @@ def test_product_management(results: TestResults, user_token: str, admin_token: 
         else:
             results.log_fail("Verify product deletion", f"Product still accessible after deletion. Status: {response['status_code']}")
 
+def test_push_notifications(results: TestResults, user_token: str, admin_token: str):
+    """Test push notification token registration and removal"""
+    
+    # Test 1: Register admin push token
+    admin_push_token = "ExponentPushToken[admin-test-123]"
+    admin_device = "Admin iPhone"
+    
+    response = make_request(
+        "POST", "/auth/push-token",
+        data={"token": admin_push_token, "device_name": admin_device},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if response.get("success") and response.get("data", {}).get("message") == "Push token registered":
+        results.log_pass("Admin push token registration")
+    else:
+        results.log_fail("Admin push token registration", f"Expected 'Push token registered', got: {response}")
+    
+    # Test 2: Register user push token
+    user_push_token = "ExponentPushToken[user-test-456]"
+    user_device = "User Android"
+    
+    response = make_request(
+        "POST", "/auth/push-token",
+        data={"token": user_push_token, "device_name": user_device},
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+    
+    if response.get("success") and response.get("data", {}).get("message") == "Push token registered":
+        results.log_pass("User push token registration")
+    else:
+        results.log_fail("User push token registration", f"Expected 'Push token registered', got: {response}")
+    
+    # Test 3: Duplicate admin token registration (upsert)
+    response = make_request(
+        "POST", "/auth/push-token",
+        data={"token": admin_push_token, "device_name": "Admin iPhone Updated"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if response.get("success") and response.get("data", {}).get("message") == "Push token registered":
+        results.log_pass("Duplicate push token registration (upsert)")
+    else:
+        results.log_fail("Duplicate push token registration", f"Expected 'Push token registered', got: {response}")
+    
+    # Test 4: Remove user push token
+    response = make_request(
+        "DELETE", "/auth/push-token",
+        data={"token": user_push_token},
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+    
+    if response.get("success") and response.get("data", {}).get("message") == "Push token removed":
+        results.log_pass("Push token removal")
+    else:
+        results.log_fail("Push token removal", f"Expected 'Push token removed', got: {response}")
+
 def main():
     """Main test execution"""
     print("🚀 Starting Backend API Tests for Delivery App")
@@ -414,6 +471,10 @@ def main():
     # Test product management
     print("\n📦 Testing Product Management...")
     test_product_management(results, tokens["user"], tokens["admin"])
+    
+    # Test push notifications
+    print("\n📱 Testing Push Notifications...")
+    test_push_notifications(results, tokens["user"], tokens["admin"])
     
     # Print final results
     success = results.summary()
