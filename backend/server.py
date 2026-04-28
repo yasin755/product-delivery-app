@@ -724,17 +724,19 @@ async def simulated_payment_page(session_id: str, request: Request):
     success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
     cancel_url = session.get('cancel_url', '')
     
-    # Get base URL for action URLs - Use the same host the user is accessing from
-    # Extract the origin from the Referer or use the request base_url
-    referer = request.headers.get('referer', '')
-    if referer:
-        from urllib.parse import urlparse
-        parsed = urlparse(referer)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
-    else:
+    # Use the stored base_url from session (the origin URL from the frontend)
+    # This ensures the URL works correctly on all devices
+    base_url = session.get('base_url', '').rstrip('/')
+    if not base_url:
+        # Fallback: try to get from request
         base_url = str(request.base_url).rstrip('/')
     
+    # Use the base_url stored in session for pay action (ensure proper slash)
     pay_action = f"{base_url}/api/payment/simulate/{session_id}/complete"
+    
+    logger.info(f"Simulated payment page for session {session_id}")
+    logger.info(f"Base URL from session: {session.get('base_url')}")
+    logger.info(f"Pay action URL: {pay_action}")
     
     return HTMLResponse(f"""
     <!DOCTYPE html>
@@ -894,12 +896,12 @@ async def simulated_payment_page(session_id: str, request: Request):
                     </div>
                 </div>
                 
-                <a href="{pay_action}" class="btn btn-pay">
+                <button onclick="processPayment()" class="btn btn-pay" id="payBtn">
                     Pay {currency} {amount:.2f}
-                </a>
-                <a href="{cancel_url}" class="btn btn-cancel">
+                </button>
+                <button onclick="cancelPayment()" class="btn btn-cancel">
                     Cancel Payment
-                </a>
+                </button>
                 
                 <div class="secure-badge">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -909,6 +911,22 @@ async def simulated_payment_page(session_id: str, request: Request):
                 </div>
             </div>
         </div>
+        
+        <script>
+            function processPayment() {{
+                var btn = document.getElementById('payBtn');
+                btn.textContent = 'Processing...';
+                btn.disabled = true;
+                
+                // Navigate to the payment completion URL
+                // Using window.location.href for better cross-platform compatibility
+                window.location.href = '{pay_action}';
+            }}
+            
+            function cancelPayment() {{
+                window.location.href = '{cancel_url}';
+            }}
+        </script>
     </body>
     </html>
     """)
@@ -963,13 +981,19 @@ async def complete_simulated_payment(session_id: str, request: Request):
     from emergentintegrations.payments.stripe.checkout import _sessions_storage
     from fastapi.responses import RedirectResponse
     
+    logger.info(f"Payment complete request for session: {session_id}")
+    logger.info(f"Available sessions: {list(_sessions_storage.keys())}")
+    
     session = _sessions_storage.get(session_id)
     if not session:
+        logger.error(f"Session {session_id} not found in storage")
         return HTMLResponse("""
         <html><head><title>Session Expired</title></head>
         <body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;">
         <div style="text-align:center"><h1>Session Expired</h1><p>This payment session has expired.</p></div></body></html>
         """, status_code=404)
+    
+    logger.info(f"Session found: {session}")
     
     # Mark session as paid
     _sessions_storage[session_id]["status"] = "complete"
@@ -1001,6 +1025,7 @@ async def complete_simulated_payment(session_id: str, request: Request):
     
     # Get success URL and replace placeholder
     success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
+    logger.info(f"Redirecting to success URL: {success_url}")
     
     # Redirect to success URL
     return RedirectResponse(url=success_url, status_code=302)

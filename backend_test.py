@@ -1,249 +1,326 @@
 #!/usr/bin/env python3
+"""
+Backend API Testing Script for Payment URL Formation Verification
+Tests the specific issue where payment URLs might be incorrectly formed.
+"""
 
 import requests
 import json
 import sys
-from urllib.parse import urlparse, parse_qs
+import re
+from typing import Dict, Any
 
-# Configuration
-BASE_URL = "https://code-preview-155.preview.emergentagent.com/api"
+# Backend URL from environment
+BACKEND_URL = "https://code-preview-155.preview.emergentagent.com/api"
+
+# Test credentials
 TEST_USER = {
     "email": "user@test.com",
     "password": "user123"
 }
 
-def test_payment_complete_endpoint():
-    """Test the new payment complete endpoint to verify redirect flow works."""
-    print("🧪 Testing Payment Complete Endpoint Flow")
-    print("=" * 60)
-    
-    session = requests.Session()
-    
-    # Step 1: Login as user to get token
-    print("1️⃣ Logging in as user...")
-    login_response = session.post(f"{BASE_URL}/auth/login", json=TEST_USER)
-    
-    if login_response.status_code != 200:
-        print(f"❌ Login failed: {login_response.status_code} - {login_response.text}")
-        return False
-    
-    login_data = login_response.json()
-    token = login_data.get('token')
-    if not token:
-        print(f"❌ No token in login response: {login_data}")
-        return False
-    
-    print(f"✅ Login successful, token received")
-    
-    # Set authorization header
-    session.headers.update({'Authorization': f'Bearer {token}'})
-    
-    # Step 2: Get available products to add to cart
-    print("\n2️⃣ Getting available products...")
-    products_response = session.get(f"{BASE_URL}/products")
-    
-    if products_response.status_code != 200:
-        print(f"❌ Failed to get products: {products_response.status_code}")
-        return False
-    
-    products_data = products_response.json()
-    products = products_data.get('products', [])
-    
-    if not products:
-        print("❌ No products available")
-        return False
-    
-    product = products[0]  # Use first available product
-    product_id = product['id']
-    print(f"✅ Found product: {product['name']} (ID: {product_id})")
-    
-    # Step 3: Add item to cart
-    print("\n3️⃣ Adding item to cart...")
-    cart_data = {
-        "product_id": product_id,
-        "quantity": 2
-    }
-    
-    cart_response = session.post(f"{BASE_URL}/cart/add", json=cart_data)
-    
-    if cart_response.status_code != 200:
-        print(f"❌ Failed to add to cart: {cart_response.status_code} - {cart_response.text}")
-        return False
-    
-    print(f"✅ Added {cart_data['quantity']} items to cart")
-    
-    # Step 4: Create checkout with payment_method='card'
-    print("\n4️⃣ Creating checkout with card payment...")
-    checkout_data = {
-        "payment_method": "card",
-        "origin_url": "https://code-preview-155.preview.emergentagent.com",
-        "address": {
-            "label": "Test Address",
-            "address_line": "123 Test Street",
-            "city": "Test City",
-            "state": "Test State",
-            "pincode": "123456",
-            "phone": "9876543210"
+class PaymentURLTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.user_token = None
+        self.test_results = []
+        
+    def log_result(self, test_name: str, success: bool, message: str, details: Dict = None):
+        """Log test result"""
+        result = {
+            "test": test_name,
+            "success": success,
+            "message": message,
+            "details": details or {}
         }
-    }
-    
-    checkout_response = session.post(f"{BASE_URL}/orders/checkout", json=checkout_data)
-    
-    if checkout_response.status_code != 200:
-        print(f"❌ Checkout failed: {checkout_response.status_code} - {checkout_response.text}")
-        return False
-    
-    checkout_result = checkout_response.json()
-    session_id = checkout_result.get('session_id')
-    order_id = checkout_result.get('order_id')
-    
-    if not session_id:
-        print(f"❌ No session_id in checkout response: {checkout_result}")
-        return False
-    
-    print(f"✅ Checkout created successfully")
-    print(f"   Order ID: {order_id}")
-    print(f"   Session ID: {session_id}")
-    print(f"   Checkout URL: {checkout_result.get('checkout_url')}")
-    
-    # Step 5: Call GET /api/payment/simulate/{session_id}/complete
-    print(f"\n5️⃣ Calling payment complete endpoint...")
-    complete_url = f"{BASE_URL}/payment/simulate/{session_id}/complete"
-    
-    # Use allow_redirects=False to capture the redirect response
-    complete_response = session.get(complete_url, allow_redirects=False)
-    
-    print(f"   Complete URL: {complete_url}")
-    print(f"   Response Status: {complete_response.status_code}")
-    print(f"   Response Headers: {dict(complete_response.headers)}")
-    
-    # Step 6: Verify it returns a 302 redirect
-    if complete_response.status_code != 302:
-        print(f"❌ Expected 302 redirect, got {complete_response.status_code}")
-        print(f"   Response body: {complete_response.text}")
-        return False
-    
-    # Get the redirect location
-    redirect_url = complete_response.headers.get('location')
-    if not redirect_url:
-        print("❌ No redirect location in response headers")
-        return False
-    
-    print(f"✅ Got 302 redirect to: {redirect_url}")
-    
-    # Step 7: Verify redirect URL contains session_id and status=success
-    parsed_url = urlparse(redirect_url)
-    query_params = parse_qs(parsed_url.query)
-    
-    print(f"   Redirect URL components:")
-    print(f"   - Base URL: {parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}")
-    print(f"   - Query params: {query_params}")
-    
-    # Check if session_id is in the URL (either as query param or in path)
-    session_in_url = (session_id in redirect_url or 
-                     'session_id' in query_params or
-                     session_id in parsed_url.path)
-    
-    status_success = ('status' in query_params and 'success' in query_params['status'])
-    
-    if not session_in_url:
-        print(f"❌ Session ID {session_id} not found in redirect URL")
-        return False
-    
-    if not status_success:
-        print(f"❌ status=success not found in redirect URL query params")
-        return False
-    
-    print(f"✅ Redirect URL contains session_id and status=success")
-    
-    # Step 8: Verify the order's payment_status is updated to 'paid'
-    print(f"\n6️⃣ Verifying order payment status...")
-    
-    # Get order details
-    orders_response = session.get(f"{BASE_URL}/orders")
-    
-    if orders_response.status_code != 200:
-        print(f"❌ Failed to get orders: {orders_response.status_code}")
-        return False
-    
-    orders_data = orders_response.json()
-    
-    # Handle both list and dict response formats
-    if isinstance(orders_data, list):
-        orders = orders_data
-    else:
-        orders = orders_data.get('orders', [])
-    
-    # Find our order
-    target_order = None
-    for order in orders:
-        if order.get('id') == order_id:
-            target_order = order
-            break
-    
-    if not target_order:
-        print(f"❌ Order {order_id} not found in orders list")
-        return False
-    
-    payment_status = target_order.get('payment_status')
-    order_status = target_order.get('status')
-    
-    print(f"   Order ID: {target_order.get('id')}")
-    print(f"   Payment Status: {payment_status}")
-    print(f"   Order Status: {order_status}")
-    print(f"   Total: ₹{target_order.get('total', 0)}")
-    
-    if payment_status != 'paid':
-        print(f"❌ Expected payment_status='paid', got '{payment_status}'")
-        return False
-    
-    if order_status != 'confirmed':
-        print(f"❌ Expected order status='confirmed', got '{order_status}'")
-        return False
-    
-    print(f"✅ Order payment status correctly updated to 'paid'")
-    print(f"✅ Order status correctly updated to 'confirmed'")
-    
-    # Additional verification: Check payment status endpoint
-    print(f"\n7️⃣ Verifying payment status endpoint...")
-    status_response = session.get(f"{BASE_URL}/payments/status/{session_id}")
-    
-    if status_response.status_code == 200:
-        status_data = status_response.json()
-        print(f"   Payment Status API Response: {status_data}")
+        self.test_results.append(result)
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name} - {message}")
+        if details:
+            for key, value in details.items():
+                print(f"  {key}: {value}")
+        print()
+
+    def login_user(self) -> bool:
+        """Login as test user and get token"""
+        try:
+            response = self.session.post(
+                f"{BACKEND_URL}/auth/login",
+                json=TEST_USER,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.user_token = data.get('token') or data.get('access_token')
+                if self.user_token:
+                    self.session.headers.update({'Authorization': f'Bearer {self.user_token}'})
+                    self.log_result("User Login", True, "Successfully logged in as test user")
+                    return True
+                else:
+                    self.log_result("User Login", False, "No access token in response", {"response": data})
+                    return False
+            else:
+                self.log_result("User Login", False, f"Login failed with status {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+        except Exception as e:
+            self.log_result("User Login", False, f"Login request failed: {str(e)}")
+            return False
+
+    def add_item_to_cart(self) -> bool:
+        """Add an item to cart for checkout"""
+        try:
+            # First get available products
+            response = self.session.get(f"{BACKEND_URL}/products", timeout=10)
+            if response.status_code != 200:
+                self.log_result("Get Products", False, f"Failed to get products: {response.status_code}")
+                return False
+                
+            products = response.json().get('products', [])
+            if not products:
+                self.log_result("Get Products", False, "No products available")
+                return False
+                
+            product = products[0]  # Use first available product
+            
+            # Add to cart
+            cart_item = {
+                "product_id": product['id'],
+                "quantity": 1
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/cart/add",
+                json=cart_item,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                self.log_result("Add to Cart", True, f"Added product {product['name']} to cart")
+                return True
+            else:
+                self.log_result("Add to Cart", False, f"Failed to add to cart: {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+        except Exception as e:
+            self.log_result("Add to Cart", False, f"Add to cart failed: {str(e)}")
+            return False
+
+    def test_payment_url_formation(self) -> bool:
+        """Test the main issue: payment URL formation"""
+        try:
+            # Create checkout with specific origin_url
+            origin_url = "https://code-preview-155.preview.emergentagent.com"
+            checkout_data = {
+                "payment_method": "card",
+                "origin_url": origin_url,
+                "address": {
+                    "label": "Home",
+                    "address_line": "123 Test Street",
+                    "city": "Test City",
+                    "state": "Test State",
+                    "pincode": "123456",
+                    "phone": "+1234567890"
+                }
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/orders/checkout",
+                json=checkout_data,
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                self.log_result("Create Checkout", False, f"Checkout failed: {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+            checkout_response = response.json()
+            checkout_url = checkout_response.get('checkout_url')
+            session_id = checkout_response.get('session_id')
+            
+            if not checkout_url or not session_id:
+                self.log_result("Create Checkout", False, "Missing checkout_url or session_id", 
+                              {"response": checkout_response})
+                return False
+                
+            self.log_result("Create Checkout", True, "Checkout session created successfully", {
+                "checkout_url": checkout_url,
+                "session_id": session_id,
+                "order_id": checkout_response.get('order_id')
+            })
+            
+            # Now test the payment page URL formation
+            success = self.test_payment_page_urls(checkout_url, session_id, origin_url)
+            
+            # Also test the payment completion endpoint
+            if success:
+                self.test_payment_completion(session_id)
+            
+            return success
+            
+        except Exception as e:
+            self.log_result("Create Checkout", False, f"Checkout request failed: {str(e)}")
+            return False
+
+    def test_payment_page_urls(self, checkout_url: str, session_id: str, origin_url: str) -> bool:
+        """Test the payment page and verify URL formation"""
+        try:
+            # Request the simulated payment page
+            response = self.session.get(checkout_url, timeout=10)
+            
+            if response.status_code != 200:
+                self.log_result("Payment Page Request", False, f"Payment page failed: {response.status_code}")
+                return False
+                
+            html_content = response.text
+            self.log_result("Payment Page Request", True, "Payment page loaded successfully")
+            
+            # Extract the pay_action URL from the HTML
+            # Look for the form action or any URL containing the complete endpoint
+            pay_action_pattern = r'(https://[^"\'>\s]+/api/payment/simulate/[^/]+/complete)'
+            matches = re.findall(pay_action_pattern, html_content)
+            
+            if not matches:
+                # Try alternative patterns
+                alternative_patterns = [
+                    r'action="([^"]+/complete)"',
+                    r'action=\'([^\']+/complete)\'',
+                    r'(https://[^"\'>\s]+api/payment/simulate/[^/]+/complete)'  # Missing slash pattern
+                ]
+                
+                for pattern in alternative_patterns:
+                    matches = re.findall(pattern, html_content)
+                    if matches:
+                        break
+                        
+            if not matches:
+                self.log_result("URL Extraction", False, "Could not find pay_action URL in HTML", 
+                              {"html_snippet": html_content[:500]})
+                return False
+                
+            pay_action_url = matches[0]
+            expected_url = f"{origin_url}/api/payment/simulate/{session_id}/complete"
+            
+            # Check for the specific issue: missing slash
+            incorrect_url = f"{origin_url}api/payment/simulate/{session_id}/complete"  # Missing slash
+            
+            url_correct = pay_action_url == expected_url
+            url_has_missing_slash = pay_action_url == incorrect_url
+            
+            if url_correct:
+                self.log_result("URL Formation Check", True, "Payment URL correctly formed", {
+                    "expected": expected_url,
+                    "actual": pay_action_url
+                })
+                return True
+            elif url_has_missing_slash:
+                self.log_result("URL Formation Check", False, "Payment URL missing slash - CRITICAL BUG", {
+                    "expected": expected_url,
+                    "actual": pay_action_url,
+                    "issue": "Missing slash between domain and /api"
+                })
+                return False
+            else:
+                self.log_result("URL Formation Check", False, "Payment URL format unexpected", {
+                    "expected": expected_url,
+                    "actual": pay_action_url
+                })
+                return False
+                
+        except Exception as e:
+            self.log_result("Payment Page Test", False, f"Payment page test failed: {str(e)}")
+            return False
+
+    def test_payment_completion(self, session_id: str) -> bool:
+        """Test the payment completion endpoint"""
+        try:
+            complete_url = f"{BACKEND_URL}/payment/simulate/{session_id}/complete"
+            
+            # Test GET request to completion endpoint
+            response = self.session.get(complete_url, timeout=10, allow_redirects=False)
+            
+            if response.status_code == 302:
+                redirect_url = response.headers.get('Location', '')
+                self.log_result("Payment Completion", True, "Payment completion returns redirect", {
+                    "redirect_url": redirect_url,
+                    "status_code": response.status_code
+                })
+                return True
+            else:
+                self.log_result("Payment Completion", False, f"Unexpected status: {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+        except Exception as e:
+            self.log_result("Payment Completion", False, f"Payment completion failed: {str(e)}")
+            return False
+
+    def run_all_tests(self):
+        """Run all payment URL formation tests"""
+        print("🧪 Starting Payment URL Formation Tests")
+        print("=" * 60)
         
-        api_payment_status = status_data.get('payment_status')
-        api_status = status_data.get('status')
+        # Step 1: Login
+        if not self.login_user():
+            print("❌ Cannot proceed without login")
+            return False
+            
+        # Step 2: Add item to cart
+        if not self.add_item_to_cart():
+            print("❌ Cannot proceed without items in cart")
+            return False
+            
+        # Step 3: Test payment URL formation (main test)
+        if not self.test_payment_url_formation():
+            print("❌ Payment URL formation test failed")
+            return False
+            
+        print("✅ All payment URL formation tests completed successfully!")
+        return True
+
+    def print_summary(self):
+        """Print test summary"""
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
         
-        if api_payment_status == 'paid' and api_status in ['complete', 'completed']:
-            print(f"✅ Payment status API confirms payment_status='paid' and status='{api_status}'")
-        else:
-            print(f"⚠️ Payment status API shows payment_status='{api_payment_status}', status='{api_status}'")
-    else:
-        print(f"⚠️ Payment status API returned {status_response.status_code}")
-    
-    print(f"\n🎉 ALL TESTS PASSED! Payment complete endpoint working correctly")
-    print(f"✅ GET /api/payment/simulate/{session_id}/complete returns 302 redirect")
-    print(f"✅ Redirect URL contains session_id and status=success")
-    print(f"✅ Order payment_status updated to 'paid'")
-    print(f"✅ Order status updated to 'confirmed'")
-    
-    return True
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for result in self.test_results if result['success'])
+        failed_tests = total_tests - passed_tests
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {failed_tests}")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        
+        if failed_tests > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result['success']:
+                    print(f"  - {result['test']}: {result['message']}")
+                    
+        print("\n" + "=" * 60)
 
 def main():
-    """Run the payment complete endpoint test."""
+    """Main test execution"""
+    tester = PaymentURLTester()
+    
     try:
-        success = test_payment_complete_endpoint()
-        if success:
-            print(f"\n🎯 SUMMARY: Payment complete endpoint test PASSED")
-            sys.exit(0)
-        else:
-            print(f"\n❌ SUMMARY: Payment complete endpoint test FAILED")
+        success = tester.run_all_tests()
+        tester.print_summary()
+        
+        if not success:
             sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\n🛑 Tests interrupted by user")
+        sys.exit(1)
     except Exception as e:
-        print(f"\n💥 UNEXPECTED ERROR: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"\n💥 Unexpected error: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":

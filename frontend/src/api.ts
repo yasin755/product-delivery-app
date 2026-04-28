@@ -141,5 +141,11 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
 }
 
 export function getApiBase() {
+  // For checkout origin_url, always use the public preview URL to ensure
+  // it works on all devices (web, mobile, tablets)
+  const publicUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (publicUrl && publicUrl.trim()) {
+    return publicUrl;
+  }
   return API_BASE;
 }

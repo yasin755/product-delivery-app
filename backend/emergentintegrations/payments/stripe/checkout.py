@@ -54,7 +54,7 @@ class StripeCheckout:
         # Generate unique session ID
         session_id = f"cs_sim_{int(time.time() * 1000)}_{id(request)}"
         
-        # Store session data globally
+        # Store session data globally including base_url for the payment page
         _sessions_storage[session_id] = {
             "status": "open",
             "payment_status": "unpaid",
@@ -62,7 +62,8 @@ class StripeCheckout:
             "currency": request.currency,
             "metadata": request.metadata,
             "success_url": request.success_url,
-            "cancel_url": request.cancel_url
+            "cancel_url": request.cancel_url,
+            "base_url": request.base_url  # Store base_url for use in payment page
         }
         
         # Return URL pointing to simulated payment page endpoint

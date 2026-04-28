@@ -532,6 +532,21 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+  - task: "Payment - URL Formation Verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Quick verification test for the payment flow fix. Test that the payment URLs are correctly formed."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Payment URL formation verified successfully. The pay_action URL is correctly formed as 'https://code-preview-155.preview.emergentagent.com/api/payment/simulate/{session_id}/complete' with proper slash between domain and /api. No missing slash issue found. Backend logs confirm: 'Pay action URL: https://code-preview-155.preview.emergentagent.com/api/payment/simulate/cs_sim_1777357577976_275040526105840/complete'. Full payment flow tested: login → add to cart → checkout → payment page → payment completion. All 6 test scenarios passed."
+
 agent_communication:
   - agent: "main"
     message: "Implemented Address Edit/Delete and Coupon System. Backend has PUT /api/auth/address/{id} for editing, DELETE /api/auth/address/{id} for deleting, GET /api/coupons for listing, POST /api/coupons/apply for applying coupons. Frontend profile.tsx updated with edit/delete UI, checkout.tsx updated with coupon input and discount display. Auth: user@test.com/user123, admin@delivery.com/admin123. Please test all backend endpoints first."
@@ -547,3 +562,5 @@ agent_communication:
     message: "✅ PAYMENT FLOW TESTING COMPLETE: All 5 payment backend endpoints tested successfully. COD checkout works perfectly - returns checkout_url=null, payment_method='cod', creates order with status='confirmed' and payment_status='cod'. Card payment checkout creates session with local simulated URL (/api/payment/simulate/{session_id}) - no more fake Stripe URLs. Simulated payment page loads correctly with test mode indicators. Payment processing (POST /pay) successfully updates order to 'paid' status. Payment status check returns correct 'paid'/'complete' status. All 7 test scenarios passed. Payment flow is now fully functional and user-reported issue 'payment is not working from user end' is RESOLVED."
   - agent: "testing"
     message: "✅ PAYMENT COMPLETE ENDPOINT TESTING COMPLETE: New GET /api/payment/simulate/{session_id}/complete endpoint tested successfully. Returns 302 redirect with session_id and status=success in URL. Order payment_status correctly updated to 'paid' and status to 'confirmed'. Payment status API confirms payment_status='paid' and status='complete'. GET-based payment completion working correctly as alternative to JavaScript fetch. All test scenarios from review request passed: login → add to cart → checkout → payment complete → verify redirect → verify order status. Payment redirect flow fully functional."
+  - agent: "testing"
+    message: "✅ PAYMENT URL FORMATION VERIFICATION COMPLETE: Tested the specific concern about payment URLs being incorrectly formed. The pay_action URL is correctly formed as 'https://code-preview-155.preview.emergentagent.com/api/payment/simulate/{session_id}/complete' with proper slash between domain and /api. Backend logs confirm correct URL generation. No missing slash issue found (NOT 'https://code-preview-155.preview.emergentagent.comapi/payment/...'). Full payment flow verified: login → add to cart → checkout with origin_url → payment page request → URL extraction → payment completion. All 6 test scenarios passed. Payment URL formation is working correctly."
