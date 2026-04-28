@@ -248,6 +248,9 @@ async def get_profile(user=Depends(get_current_user)):
 @api_router.post("/auth/address")
 async def add_address(address: AddressModel, user=Depends(get_current_user)):
     addr_dict = address.dict()
+    # Generate unique ID for the address if not provided
+    if not addr_dict.get('id'):
+        addr_dict['id'] = str(uuid.uuid4())
     await db.users.update_one({'id': user['id']}, {'$push': {'addresses': addr_dict}})
     return {'message': 'Address added', 'address': addr_dict}
 
