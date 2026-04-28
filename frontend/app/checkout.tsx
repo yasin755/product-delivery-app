@@ -576,80 +576,95 @@ export default function CheckoutScreen() {
       </Modal>
 
       {/* Address Modal */}
-      <Modal visible={showAddressModal} transparent animationType="slide" onRequestClose={() => setShowAddressModal(false)}>
-        <View style={styles.addrModalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.addrModalWrap}>
-            <View style={styles.addrModalBox}>
-              <View style={styles.addrModalHeader}>
-                <Text style={styles.addrModalTitle}>Select Address</Text>
-                <TouchableOpacity testID="close-checkout-addr-modal" onPress={() => setShowAddressModal(false)}>
-                  <Ionicons name="close" size={24} color={colors.textMain} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                {/* Saved Addresses - Select */}
-                {user?.addresses && user.addresses.length > 0 && (
-                  <View style={styles.addrSection}>
-                    <Text style={styles.addrSectionTitle}>Saved Addresses</Text>
-                    {user.addresses.map((addr: any, i: number) => (
-                      <TouchableOpacity
-                        key={addr.id || i}
-                        testID={`select-address-${i}`}
-                        style={[styles.savedAddr, selectedAddress?.id === addr.id && styles.savedAddrSelected]}
-                        onPress={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name={selectedAddress?.id === addr.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={colors.primary} />
-                        <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                          <Text style={styles.savedAddrLabel}>{addr.label}</Text>
-                          <Text style={styles.savedAddrText}>{addr.address_line}, {addr.city}, {addr.state} {addr.pincode}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {/* Add New */}
-                <View style={styles.addrSection}>
-                  <Text style={styles.addrSectionTitle}>Add New Address</Text>
-                  <TouchableOpacity testID="checkout-detect-location-btn" style={styles.detectBtn} onPress={detectLocation} disabled={detecting} activeOpacity={0.7}>
-                    {detecting ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="navigate" size={18} color={colors.primary} />}
-                    <Text style={styles.detectBtnText}>{detecting ? 'Detecting...' : 'Use Current Location'}</Text>
-                  </TouchableOpacity>
-
-                  <Text style={styles.fieldLabel}>Label</Text>
-                  <TextInput testID="checkout-addr-label" style={styles.fieldInput} value={editAddr.label} onChangeText={(t) => setEditAddr({ ...editAddr, label: t })} placeholder="Home, Work..." placeholderTextColor={colors.textMuted} />
-                  <Text style={styles.fieldLabel}>Address Line</Text>
-                  <TextInput testID="checkout-addr-line" style={styles.fieldInput} value={editAddr.address_line} onChangeText={(t) => setEditAddr({ ...editAddr, address_line: t })} placeholder="Street, building" placeholderTextColor={colors.textMuted} />
-                  <View style={styles.fieldRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>City</Text>
-                      <TextInput testID="checkout-addr-city" style={styles.fieldInput} value={editAddr.city} onChangeText={(t) => setEditAddr({ ...editAddr, city: t })} placeholder="City" placeholderTextColor={colors.textMuted} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>State</Text>
-                      <TextInput testID="checkout-addr-state" style={styles.fieldInput} value={editAddr.state} onChangeText={(t) => setEditAddr({ ...editAddr, state: t })} placeholder="State" placeholderTextColor={colors.textMuted} />
-                    </View>
-                  </View>
-                  <View style={styles.fieldRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Pincode</Text>
-                      <TextInput testID="checkout-addr-pincode" style={styles.fieldInput} value={editAddr.pincode} onChangeText={(t) => setEditAddr({ ...editAddr, pincode: t })} placeholder="Pincode" placeholderTextColor={colors.textMuted} keyboardType="number-pad" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Phone</Text>
-                      <TextInput testID="checkout-addr-phone" style={styles.fieldInput} value={editAddr.phone} onChangeText={(t) => setEditAddr({ ...editAddr, phone: t })} placeholder="Phone" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
-                    </View>
-                  </View>
-                  <TouchableOpacity testID="checkout-save-address-btn" style={styles.saveAddrBtn} onPress={saveAndSelectAddress} activeOpacity={0.7}>
-                    <Text style={styles.saveAddrBtnText}>Save & Use This Address</Text>
+      <Modal 
+        visible={showAddressModal} 
+        transparent={true} 
+        animationType="slide" 
+        onRequestClose={() => setShowAddressModal(false)}
+        statusBarTranslucent={true}
+      >
+        <TouchableOpacity 
+          style={styles.addrModalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowAddressModal(false)}
+        >
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+            style={styles.addrModalWrap}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.addrModalBox}>
+                <View style={styles.addrModalHeader}>
+                  <Text style={styles.addrModalTitle}>Select Address</Text>
+                  <TouchableOpacity testID="close-checkout-addr-modal" onPress={() => setShowAddressModal(false)}>
+                    <Ionicons name="close" size={24} color={colors.textMain} />
                   </TouchableOpacity>
                 </View>
-              </ScrollView>
-            </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 500 }}>
+                  {/* Saved Addresses - Select */}
+                  {user?.addresses && user.addresses.length > 0 && (
+                    <View style={styles.addrSection}>
+                      <Text style={styles.addrSectionTitle}>Saved Addresses</Text>
+                      {user.addresses.map((addr: any, i: number) => (
+                        <TouchableOpacity
+                          key={addr.id || i}
+                          testID={`select-address-${i}`}
+                          style={[styles.savedAddr, selectedAddress?.id === addr.id && styles.savedAddrSelected]}
+                          onPress={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name={selectedAddress?.id === addr.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={colors.primary} />
+                          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                            <Text style={styles.savedAddrLabel}>{addr.label}</Text>
+                            <Text style={styles.savedAddrText}>{addr.address_line}, {addr.city}, {addr.state} {addr.pincode}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Add New */}
+                  <View style={styles.addrSection}>
+                    <Text style={styles.addrSectionTitle}>Add New Address</Text>
+                    <TouchableOpacity testID="checkout-detect-location-btn" style={styles.detectBtn} onPress={detectLocation} disabled={detecting} activeOpacity={0.7}>
+                      {detecting ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="navigate" size={18} color={colors.primary} />}
+                      <Text style={styles.detectBtnText}>{detecting ? 'Detecting...' : 'Use Current Location'}</Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.fieldLabel}>Label</Text>
+                    <TextInput testID="checkout-addr-label" style={styles.fieldInput} value={editAddr.label} onChangeText={(t) => setEditAddr({ ...editAddr, label: t })} placeholder="Home, Work..." placeholderTextColor={colors.textMuted} />
+                    <Text style={styles.fieldLabel}>Address Line</Text>
+                    <TextInput testID="checkout-addr-line" style={styles.fieldInput} value={editAddr.address_line} onChangeText={(t) => setEditAddr({ ...editAddr, address_line: t })} placeholder="Street, building" placeholderTextColor={colors.textMuted} />
+                    <View style={styles.fieldRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>City</Text>
+                        <TextInput testID="checkout-addr-city" style={styles.fieldInput} value={editAddr.city} onChangeText={(t) => setEditAddr({ ...editAddr, city: t })} placeholder="City" placeholderTextColor={colors.textMuted} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>State</Text>
+                        <TextInput testID="checkout-addr-state" style={styles.fieldInput} value={editAddr.state} onChangeText={(t) => setEditAddr({ ...editAddr, state: t })} placeholder="State" placeholderTextColor={colors.textMuted} />
+                      </View>
+                    </View>
+                    <View style={styles.fieldRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>Pincode</Text>
+                        <TextInput testID="checkout-addr-pincode" style={styles.fieldInput} value={editAddr.pincode} onChangeText={(t) => setEditAddr({ ...editAddr, pincode: t })} placeholder="Pincode" placeholderTextColor={colors.textMuted} keyboardType="number-pad" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>Phone</Text>
+                        <TextInput testID="checkout-addr-phone" style={styles.fieldInput} value={editAddr.phone} onChangeText={(t) => setEditAddr({ ...editAddr, phone: t })} placeholder="Phone" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+                      </View>
+                    </View>
+                    <TouchableOpacity testID="checkout-save-address-btn" style={styles.saveAddrBtn} onPress={saveAndSelectAddress} activeOpacity={0.7}>
+                      <Text style={styles.saveAddrBtnText}>Save & Use This Address</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
           </KeyboardAvoidingView>
-        </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -739,8 +754,8 @@ const styles = StyleSheet.create({
   secondaryBtnText: { color: colors.textMain, fontSize: 16, fontWeight: '600' },
   // Address Modal
   addrModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  addrModalWrap: { maxHeight: '90%' },
-  addrModalBox: { backgroundColor: colors.surface, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg, padding: spacing.lg, maxHeight: '100%' },
+  addrModalWrap: { width: '100%' },
+  addrModalBox: { backgroundColor: colors.surface, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg, padding: spacing.lg, paddingBottom: spacing.xl },
   addrModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   addrModalTitle: { fontSize: 20, fontWeight: '700', color: colors.textMain },
   addrSection: { marginBottom: spacing.lg },
