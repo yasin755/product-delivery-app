@@ -252,7 +252,41 @@ export default function CheckoutScreen() {
           <Text style={styles.webTitle}>Secure Payment</Text>
           <Ionicons name="lock-closed" size={18} color={colors.success} />
         </View>
-        <WebView source={{ uri: checkoutUrl }} onNavigationStateChange={handleWebViewNavigation} style={styles.webview} startInLoadingState renderLoading={() => <ActivityIndicator style={styles.webLoading} size="large" color={colors.primary} />} />
+        <WebView 
+          source={{ uri: checkoutUrl }} 
+          onNavigationStateChange={handleWebViewNavigation} 
+          style={styles.webview} 
+          startInLoadingState 
+          renderLoading={() => <ActivityIndicator style={styles.webLoading} size="large" color={colors.primary} />}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          onError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.warn('WebView error: ', nativeEvent);
+            Alert.alert('Payment Error', 'Failed to load payment page. Please try again.');
+            setCheckoutUrl(null);
+            setProcessing(false);
+          }}
+          onHttpError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.warn('WebView HTTP error: ', nativeEvent.statusCode);
+          }}
+          onMessage={(event) => {
+            // Handle messages from the payment page
+            try {
+              const data = JSON.parse(event.nativeEvent.data);
+              if (data.type === 'payment_success') {
+                setCheckoutUrl(null);
+                setPaymentSuccess(true);
+              } else if (data.type === 'payment_cancel') {
+                setCheckoutUrl(null);
+                setProcessing(false);
+              }
+            } catch (e) {
+              console.log('WebView message:', event.nativeEvent.data);
+            }
+          }}
+        />
       </SafeAreaView>
     );
   }

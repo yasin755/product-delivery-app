@@ -724,10 +724,17 @@ async def simulated_payment_page(session_id: str, request: Request):
     success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
     cancel_url = session.get('cancel_url', '')
     
-    # Get base URL for action URLs
-    base_url = str(request.base_url).rstrip('/')
-    pay_action = f"{base_url}/api/payment/simulate/{session_id}/pay"
-    cancel_action = f"{base_url}/api/payment/simulate/{session_id}/cancel"
+    # Get base URL for action URLs - Use the same host the user is accessing from
+    # Extract the origin from the Referer or use the request base_url
+    referer = request.headers.get('referer', '')
+    if referer:
+        from urllib.parse import urlparse
+        parsed = urlparse(referer)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+    else:
+        base_url = str(request.base_url).rstrip('/')
+    
+    pay_action = f"{base_url}/api/payment/simulate/{session_id}/complete"
     
     return HTMLResponse(f"""
     <!DOCTYPE html>
@@ -818,10 +825,7 @@ async def simulated_payment_page(session_id: str, request: Request):
                 border-radius: 10px;
                 font-size: 16px;
                 transition: border-color 0.2s;
-            }}
-            .form-group input:focus {{
-                outline: none;
-                border-color: #667eea;
+                background: #f9f9f9;
             }}
             .form-row {{ display: flex; gap: 16px; }}
             .form-row .form-group {{ flex: 1; }}
@@ -835,6 +839,9 @@ async def simulated_payment_page(session_id: str, request: Request):
                 cursor: pointer;
                 transition: all 0.2s;
                 margin-bottom: 12px;
+                text-decoration: none;
+                display: block;
+                text-align: center;
             }}
             .btn-pay {{
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -853,10 +860,6 @@ async def simulated_payment_page(session_id: str, request: Request):
                 margin-top: 16px;
             }}
             .secure-badge svg {{ vertical-align: middle; margin-right: 4px; }}
-            .loading {{ display: none; }}
-            .btn.loading {{ pointer-events: none; opacity: 0.7; }}
-            .btn.loading .loading {{ display: inline; }}
-            .btn.loading .text {{ display: none; }}
         </style>
     </head>
     <body>
@@ -876,30 +879,27 @@ async def simulated_payment_page(session_id: str, request: Request):
                     </div>
                 </div>
                 
-                <form id="paymentForm">
+                <div class="form-group">
+                    <label>Card Number (Pre-filled for testing)</label>
+                    <input type="text" value="4242 4242 4242 4242" readonly>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
-                        <label>Card Number (Pre-filled for testing)</label>
-                        <input type="text" value="4242 4242 4242 4242" readonly style="background:#f9f9f9;">
+                        <label>Expiry</label>
+                        <input type="text" value="12/26" readonly>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Expiry</label>
-                            <input type="text" value="12/26" readonly style="background:#f9f9f9;">
-                        </div>
-                        <div class="form-group">
-                            <label>CVV</label>
-                            <input type="text" value="123" readonly style="background:#f9f9f9;">
-                        </div>
+                    <div class="form-group">
+                        <label>CVV</label>
+                        <input type="text" value="123" readonly>
                     </div>
-                    
-                    <button type="button" class="btn btn-pay" onclick="processPayment()">
-                        <span class="text">Pay {currency} {amount:.2f}</span>
-                        <span class="loading">Processing...</span>
-                    </button>
-                    <button type="button" class="btn btn-cancel" onclick="cancelPayment()">
-                        Cancel Payment
-                    </button>
-                </form>
+                </div>
+                
+                <a href="{pay_action}" class="btn btn-pay">
+                    Pay {currency} {amount:.2f}
+                </a>
+                <a href="{cancel_url}" class="btn btn-cancel">
+                    Cancel Payment
+                </a>
                 
                 <div class="secure-badge">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -909,31 +909,6 @@ async def simulated_payment_page(session_id: str, request: Request):
                 </div>
             </div>
         </div>
-        
-        <script>
-            async function processPayment() {{
-                const btn = document.querySelector('.btn-pay');
-                btn.classList.add('loading');
-                
-                try {{
-                    const response = await fetch('{pay_action}', {{ method: 'POST' }});
-                    const data = await response.json();
-                    if (data.success) {{
-                        window.location.href = data.redirect_url;
-                    }} else {{
-                        alert('Payment failed: ' + data.error);
-                        btn.classList.remove('loading');
-                    }}
-                }} catch (error) {{
-                    alert('Payment error: ' + error.message);
-                    btn.classList.remove('loading');
-                }}
-            }}
-            
-            function cancelPayment() {{
-                window.location.href = '{cancel_url}';
-            }}
-        </script>
     </body>
     </html>
     """)
@@ -980,6 +955,55 @@ async def process_simulated_payment(session_id: str, request: Request):
     success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
     
     return {"success": True, "redirect_url": success_url}
+
+
+@api_router.get("/payment/simulate/{session_id}/complete")
+async def complete_simulated_payment(session_id: str, request: Request):
+    """Complete simulated payment via GET - processes payment and redirects directly."""
+    from emergentintegrations.payments.stripe.checkout import _sessions_storage
+    from fastapi.responses import RedirectResponse
+    
+    session = _sessions_storage.get(session_id)
+    if not session:
+        return HTMLResponse("""
+        <html><head><title>Session Expired</title></head>
+        <body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;">
+        <div style="text-align:center"><h1>Session Expired</h1><p>This payment session has expired.</p></div></body></html>
+        """, status_code=404)
+    
+    # Mark session as paid
+    _sessions_storage[session_id]["status"] = "complete"
+    _sessions_storage[session_id]["payment_status"] = "paid"
+    
+    # Update database records
+    transaction = await db.payment_transactions.find_one({'session_id': session_id}, {'_id': 0})
+    if transaction:
+        await db.payment_transactions.update_one(
+            {'session_id': session_id},
+            {'$set': {'status': 'completed', 'payment_status': 'paid',
+                      'updated_at': datetime.now(timezone.utc).isoformat()}}
+        )
+        order_id = transaction.get('order_id')
+        if order_id:
+            await db.orders.update_one(
+                {'id': order_id},
+                {'$set': {'payment_status': 'paid', 'status': 'confirmed',
+                          'updated_at': datetime.now(timezone.utc).isoformat()}}
+            )
+            # Send push notification
+            order = await db.orders.find_one({'id': order_id}, {'_id': 0})
+            if order:
+                asyncio.create_task(send_push_to_admins(
+                    title="💰 Payment Confirmed!",
+                    body=f"Order #{order_id[:8]} by {order.get('user_name', 'Customer')} - ₹{order.get('total', 0):.2f} paid",
+                    data={"order_id": order_id, "type": "payment_confirmed"}
+                ))
+    
+    # Get success URL and replace placeholder
+    success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
+    
+    # Redirect to success URL
+    return RedirectResponse(url=success_url, status_code=302)
 
 
 @api_router.post("/payment/simulate/{session_id}/cancel")

@@ -423,6 +423,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: GET /api/payments/status/{session_id} correctly returns payment_status='paid' and status='complete' after successful payment processing. Status updates work correctly."
 
+  - task: "Payment - Complete Payment via GET Redirect"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/payment/simulate/{session_id}/complete successfully processes payment and returns 302 redirect. Redirect URL contains session_id and status=success. Order payment_status updated to 'paid' and status to 'confirmed'. Payment status API confirms payment_status='paid' and status='complete'. Full payment flow working correctly with GET-based completion instead of JavaScript fetch."
+
 frontend:
   - task: "Admin - Add Product UI"
     implemented: true
@@ -533,3 +545,5 @@ agent_communication:
     message: "PAYMENT FLOW FIX: Fixed the broken payment flow. Created simulated payment page (GET /api/payment/simulate/{session_id}) with beautiful UI. Added payment processing endpoint (POST /api/payment/simulate/{session_id}/pay) that marks orders as paid. Added Cash on Delivery (COD) option in checkout. Updated frontend with payment method selection UI. Test credentials: user@test.com/user123, admin@delivery.com/admin123. Please test: 1) Card payment flow (simulated page opens, can pay successfully), 2) COD checkout (skips payment, order confirmed), 3) Payment status update after successful payment."
   - agent: "testing"
     message: "✅ PAYMENT FLOW TESTING COMPLETE: All 5 payment backend endpoints tested successfully. COD checkout works perfectly - returns checkout_url=null, payment_method='cod', creates order with status='confirmed' and payment_status='cod'. Card payment checkout creates session with local simulated URL (/api/payment/simulate/{session_id}) - no more fake Stripe URLs. Simulated payment page loads correctly with test mode indicators. Payment processing (POST /pay) successfully updates order to 'paid' status. Payment status check returns correct 'paid'/'complete' status. All 7 test scenarios passed. Payment flow is now fully functional and user-reported issue 'payment is not working from user end' is RESOLVED."
+  - agent: "testing"
+    message: "✅ PAYMENT COMPLETE ENDPOINT TESTING COMPLETE: New GET /api/payment/simulate/{session_id}/complete endpoint tested successfully. Returns 302 redirect with session_id and status=success in URL. Order payment_status correctly updated to 'paid' and status to 'confirmed'. Payment status API confirms payment_status='paid' and status='complete'. GET-based payment completion working correctly as alternative to JavaScript fetch. All test scenarios from review request passed: login → add to cart → checkout → payment complete → verify redirect → verify order status. Payment redirect flow fully functional."
