@@ -624,6 +624,25 @@ async def update_order_status(order_id: str, data: OrderStatusUpdate, user=Depen
         raise HTTPException(status_code=404, detail='Order not found')
     return {'message': 'Order status updated'}
 
+@api_router.delete("/orders/{order_id}")
+async def delete_order(order_id: str, user=Depends(get_admin_user)):
+    """Delete a single order (admin only)."""
+    # Also delete related payment transaction
+    await db.payment_transactions.delete_one({'order_id': order_id})
+    result = await db.orders.delete_one({'id': order_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Order not found')
+    return {'message': 'Order deleted successfully'}
+
+@api_router.delete("/orders")
+async def delete_all_orders(user=Depends(get_admin_user)):
+    """Delete all orders (admin only) - useful for cleaning test data."""
+    # Delete all payment transactions
+    await db.payment_transactions.delete_many({})
+    # Delete all orders
+    result = await db.orders.delete_many({})
+    return {'message': f'Deleted {result.deleted_count} orders successfully'}
+
 # ---- Payment Routes ----
 
 @api_router.get("/payments/status/{session_id}")
