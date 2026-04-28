@@ -24,6 +24,9 @@ export default function CheckoutScreen() {
   const [editAddr, setEditAddr] = useState({ label: 'Home', address_line: '', city: '', state: '', pincode: '', phone: '' });
   const [detecting, setDetecting] = useState(false);
 
+  // Payment method state
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cod'>('card');
+
   // Coupon state
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
@@ -149,10 +152,25 @@ export default function CheckoutScreen() {
       const originUrl = getApiBase();
       const data = await api('/api/orders/checkout', {
         method: 'POST',
-        body: JSON.stringify({ address: selectedAddress, origin_url: originUrl }),
+        body: JSON.stringify({ 
+          address: selectedAddress, 
+          origin_url: originUrl,
+          payment_method: paymentMethod 
+        }),
       });
       setOrderId(data.order_id);
-      setCheckoutUrl(data.checkout_url);
+      
+      // Handle COD - directly show success
+      if (data.payment_method === 'cod' || paymentMethod === 'cod') {
+        setPaymentSuccess(true);
+        setProcessing(false);
+        return;
+      }
+      
+      // Handle card payment - show WebView
+      if (data.checkout_url) {
+        setCheckoutUrl(data.checkout_url);
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Checkout failed');
       setProcessing(false);
@@ -378,6 +396,54 @@ export default function CheckoutScreen() {
           )}
         </View>
 
+        {/* Payment Method Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          <TouchableOpacity 
+            testID="payment-method-card"
+            style={[styles.paymentOption, paymentMethod === 'card' && styles.paymentOptionSelected]}
+            onPress={() => setPaymentMethod('card')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.paymentOptionLeft}>
+              <View style={[styles.paymentIconWrap, paymentMethod === 'card' && styles.paymentIconWrapSelected]}>
+                <Ionicons name="card" size={22} color={paymentMethod === 'card' ? colors.primary : colors.textMuted} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <Text style={[styles.paymentOptionTitle, paymentMethod === 'card' && styles.paymentOptionTitleSelected]}>Credit/Debit Card</Text>
+                <Text style={styles.paymentOptionDesc}>Pay securely with card (Test Mode)</Text>
+              </View>
+            </View>
+            <Ionicons 
+              name={paymentMethod === 'card' ? 'radio-button-on' : 'radio-button-off'} 
+              size={22} 
+              color={paymentMethod === 'card' ? colors.primary : colors.textMuted} 
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            testID="payment-method-cod"
+            style={[styles.paymentOption, paymentMethod === 'cod' && styles.paymentOptionSelected]}
+            onPress={() => setPaymentMethod('cod')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.paymentOptionLeft}>
+              <View style={[styles.paymentIconWrap, paymentMethod === 'cod' && styles.paymentIconWrapSelected]}>
+                <Ionicons name="cash" size={22} color={paymentMethod === 'cod' ? colors.primary : colors.textMuted} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <Text style={[styles.paymentOptionTitle, paymentMethod === 'cod' && styles.paymentOptionTitleSelected]}>Cash on Delivery</Text>
+                <Text style={styles.paymentOptionDesc}>Pay when your order arrives</Text>
+              </View>
+            </View>
+            <Ionicons 
+              name={paymentMethod === 'cod' ? 'radio-button-on' : 'radio-button-off'} 
+              size={22} 
+              color={paymentMethod === 'cod' ? colors.primary : colors.textMuted} 
+            />
+          </TouchableOpacity>
+        </View>
+
         {/* Price Breakdown */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Price Details</Text>
@@ -418,8 +484,10 @@ export default function CheckoutScreen() {
         >
           {processing ? <ActivityIndicator color="#fff" /> : (
             <>
-              <Ionicons name="lock-closed" size={18} color="#fff" />
-              <Text style={styles.payBtnText}>Pay ₹{finalTotal.toFixed(2)}</Text>
+              <Ionicons name={paymentMethod === 'cod' ? 'checkmark-circle' : 'lock-closed'} size={18} color="#fff" />
+              <Text style={styles.payBtnText}>
+                {paymentMethod === 'cod' ? `Place Order ₹${finalTotal.toFixed(2)}` : `Pay ₹${finalTotal.toFixed(2)}`}
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -610,6 +678,15 @@ const styles = StyleSheet.create({
   savingsRowText: { fontSize: 13, fontWeight: '600', color: colors.success },
   savingsBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: '#DCFCE7', borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.lg },
   savingsText: { fontSize: 14, fontWeight: '600', color: colors.success },
+  // Payment Method
+  paymentOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceAlt, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.sm, borderWidth: 2, borderColor: colors.border },
+  paymentOptionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  paymentOptionLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  paymentIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  paymentIconWrapSelected: { backgroundColor: '#fff' },
+  paymentOptionTitle: { fontSize: 15, fontWeight: '600', color: colors.textMain },
+  paymentOptionTitleSelected: { color: colors.primary },
+  paymentOptionDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   // Footer
   footer: { padding: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primary, borderRadius: radii.pill, height: 56 },
