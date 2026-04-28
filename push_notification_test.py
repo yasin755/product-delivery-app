@@ -4,7 +4,7 @@ import requests
 import json
 
 # API Configuration
-BASE_URL = "https://git-runner-5.preview.emergentagent.com/api"
+BASE_URL = "https://code-preview-155.preview.emergentagent.com/api"
 
 # Test credentials from review request
 ADMIN_CREDENTIALS = {

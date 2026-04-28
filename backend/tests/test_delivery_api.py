@@ -7,7 +7,7 @@ import requests
 import os
 
 # Read from frontend .env or use default
-BASE_URL = "https://git-runner-5.preview.emergentagent.com"
+BASE_URL = "https://code-preview-155.preview.emergentagent.com"
 
 class TestHealth:
     """Basic health checks"""
