@@ -1,485 +1,327 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Delivery App
-Tests all address CRUD and coupon system endpoints
+Backend API Testing Script for Payment URL Formation Verification
+Tests the specific issue where payment URLs might be incorrectly formed.
 """
 
 import requests
 import json
 import sys
+import re
 from typing import Dict, Any
 
-# Configuration
-BASE_URL = "https://git-runner-5.preview.emergentagent.com/api"
-HEADERS = {"Content-Type": "application/json"}
+# Backend URL from environment
+BACKEND_URL = "https://code-preview-155.preview.emergentagent.com/api"
 
 # Test credentials
-USER_CREDENTIALS = {"email": "user@test.com", "password": "user123"}
-ADMIN_CREDENTIALS = {"email": "admin@delivery.com", "password": "admin123"}
+TEST_USER = {
+    "email": "user@test.com",
+    "password": "user123"
+}
 
-class TestResults:
+class PaymentURLTester:
     def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.errors = []
+        self.session = requests.Session()
+        self.user_token = None
+        self.test_results = []
         
-    def log_pass(self, test_name: str):
-        self.passed += 1
-        print(f"✅ PASS: {test_name}")
-        
-    def log_fail(self, test_name: str, error: str):
-        self.failed += 1
-        self.errors.append(f"{test_name}: {error}")
-        print(f"❌ FAIL: {test_name} - {error}")
-        
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n{'='*60}")
-        print(f"TEST SUMMARY: {self.passed}/{total} passed")
-        if self.errors:
-            print(f"\nFAILED TESTS:")
-            for error in self.errors:
-                print(f"  - {error}")
-        print(f"{'='*60}")
-        return self.failed == 0
+    def log_result(self, test_name: str, success: bool, message: str, details: Dict = None):
+        """Log test result"""
+        result = {
+            "test": test_name,
+            "success": success,
+            "message": message,
+            "details": details or {}
+        }
+        self.test_results.append(result)
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name} - {message}")
+        if details:
+            for key, value in details.items():
+                print(f"  {key}: {value}")
+        print()
 
-def make_request(method: str, endpoint: str, data: Dict = None, headers: Dict = None) -> Dict[str, Any]:
-    """Make HTTP request and return response data"""
-    url = f"{BASE_URL}{endpoint}"
-    req_headers = HEADERS.copy()
-    if headers:
-        req_headers.update(headers)
-    
-    try:
-        if method.upper() == "GET":
-            response = requests.get(url, headers=req_headers)
-        elif method.upper() == "POST":
-            response = requests.post(url, json=data, headers=req_headers)
-        elif method.upper() == "PUT":
-            response = requests.put(url, json=data, headers=req_headers)
-        elif method.upper() == "DELETE":
-            response = requests.delete(url, json=data, headers=req_headers)
-        else:
-            raise ValueError(f"Unsupported method: {method}")
+    def login_user(self) -> bool:
+        """Login as test user and get token"""
+        try:
+            response = self.session.post(
+                f"{BACKEND_URL}/auth/login",
+                json=TEST_USER,
+                timeout=10
+            )
             
-        return {
-            "status_code": response.status_code,
-            "data": response.json() if response.content else {},
-            "success": response.status_code < 400
-        }
-    except requests.exceptions.RequestException as e:
-        return {
-            "status_code": 0,
-            "data": {"error": str(e)},
-            "success": False
-        }
-    except json.JSONDecodeError:
-        return {
-            "status_code": response.status_code,
-            "data": {"error": "Invalid JSON response"},
-            "success": False
-        }
+            if response.status_code == 200:
+                data = response.json()
+                self.user_token = data.get('token') or data.get('access_token')
+                if self.user_token:
+                    self.session.headers.update({'Authorization': f'Bearer {self.user_token}'})
+                    self.log_result("User Login", True, "Successfully logged in as test user")
+                    return True
+                else:
+                    self.log_result("User Login", False, "No access token in response", {"response": data})
+                    return False
+            else:
+                self.log_result("User Login", False, f"Login failed with status {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+        except Exception as e:
+            self.log_result("User Login", False, f"Login request failed: {str(e)}")
+            return False
 
-def test_auth_login(results: TestResults) -> Dict[str, str]:
-    """Test user and admin login, return tokens"""
-    tokens = {}
-    
-    # Test user login
-    response = make_request("POST", "/auth/login", USER_CREDENTIALS)
-    if response["success"] and "token" in response["data"]:
-        tokens["user"] = response["data"]["token"]
-        results.log_pass("User login")
-    else:
-        results.log_fail("User login", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test admin login
-    response = make_request("POST", "/auth/login", ADMIN_CREDENTIALS)
-    if response["success"] and "token" in response["data"]:
-        tokens["admin"] = response["data"]["token"]
-        results.log_pass("Admin login")
-    else:
-        results.log_fail("Admin login", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    return tokens
+    def add_item_to_cart(self) -> bool:
+        """Add an item to cart for checkout"""
+        try:
+            # First get available products
+            response = self.session.get(f"{BACKEND_URL}/products", timeout=10)
+            if response.status_code != 200:
+                self.log_result("Get Products", False, f"Failed to get products: {response.status_code}")
+                return False
+                
+            products = response.json().get('products', [])
+            if not products:
+                self.log_result("Get Products", False, "No products available")
+                return False
+                
+            product = products[0]  # Use first available product
+            
+            # Add to cart
+            cart_item = {
+                "product_id": product['id'],
+                "quantity": 1
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/cart/add",
+                json=cart_item,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                self.log_result("Add to Cart", True, f"Added product {product['name']} to cart")
+                return True
+            else:
+                self.log_result("Add to Cart", False, f"Failed to add to cart: {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+        except Exception as e:
+            self.log_result("Add to Cart", False, f"Add to cart failed: {str(e)}")
+            return False
 
-def test_address_crud(results: TestResults, user_token: str):
-    """Test address CRUD operations"""
-    auth_headers = {"Authorization": f"Bearer {user_token}"}
-    
-    # Test 1: Add address
-    address_data = {
-        "label": "Office",
-        "address_line": "456 Business Ave",
-        "city": "San Francisco",
-        "state": "CA",
-        "pincode": "94102",
-        "phone": "+1555123456"
-    }
-    
-    response = make_request("POST", "/auth/address", address_data, auth_headers)
-    if response["success"] and "address" in response["data"]:
-        address_id = response["data"]["address"]["id"]
-        results.log_pass("Add address")
-    else:
-        results.log_fail("Add address", f"Status: {response['status_code']}, Data: {response['data']}")
-        return
-    
-    # Test 2: Verify address in profile
-    response = make_request("GET", "/auth/profile", headers=auth_headers)
-    if response["success"] and "addresses" in response["data"]:
-        addresses = response["data"]["addresses"]
-        found_address = next((addr for addr in addresses if addr["id"] == address_id), None)
-        if found_address and found_address["label"] == "Office":
-            results.log_pass("Verify address in profile")
-        else:
-            results.log_fail("Verify address in profile", "Address not found or incorrect data")
-    else:
-        results.log_fail("Verify address in profile", f"Status: {response['status_code']}, Data: {response['data']}")
-        return
-    
-    # Test 3: Update address
-    updated_address = {
-        "label": "Updated Office",
-        "address_line": "789 Updated Business Ave",
-        "city": "San Francisco",
-        "state": "CA",
-        "pincode": "94103",
-        "phone": "+1555654321"
-    }
-    
-    response = make_request("PUT", f"/auth/address/{address_id}", updated_address, auth_headers)
-    if response["success"]:
-        results.log_pass("Update address")
-    else:
-        results.log_fail("Update address", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 4: Verify address update
-    response = make_request("GET", "/auth/profile", headers=auth_headers)
-    if response["success"] and "addresses" in response["data"]:
-        addresses = response["data"]["addresses"]
-        found_address = next((addr for addr in addresses if addr["id"] == address_id), None)
-        if found_address and found_address["label"] == "Updated Office":
-            results.log_pass("Verify address update")
-        else:
-            results.log_fail("Verify address update", "Address not updated correctly")
-    else:
-        results.log_fail("Verify address update", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 5: Delete address
-    response = make_request("DELETE", f"/auth/address/{address_id}", headers=auth_headers)
-    if response["success"]:
-        results.log_pass("Delete address")
-    else:
-        results.log_fail("Delete address", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 6: Verify address deletion
-    response = make_request("GET", "/auth/profile", headers=auth_headers)
-    if response["success"] and "addresses" in response["data"]:
-        addresses = response["data"]["addresses"]
-        found_address = next((addr for addr in addresses if addr["id"] == address_id), None)
-        if not found_address:
-            results.log_pass("Verify address deletion")
-        else:
-            results.log_fail("Verify address deletion", "Address still exists after deletion")
-    else:
-        results.log_fail("Verify address deletion", f"Status: {response['status_code']}, Data: {response['data']}")
+    def test_payment_url_formation(self) -> bool:
+        """Test the main issue: payment URL formation"""
+        try:
+            # Create checkout with specific origin_url
+            origin_url = "https://code-preview-155.preview.emergentagent.com"
+            checkout_data = {
+                "payment_method": "card",
+                "origin_url": origin_url,
+                "address": {
+                    "label": "Home",
+                    "address_line": "123 Test Street",
+                    "city": "Test City",
+                    "state": "Test State",
+                    "pincode": "123456",
+                    "phone": "+1234567890"
+                }
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/orders/checkout",
+                json=checkout_data,
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                self.log_result("Create Checkout", False, f"Checkout failed: {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+            checkout_response = response.json()
+            checkout_url = checkout_response.get('checkout_url')
+            session_id = checkout_response.get('session_id')
+            
+            if not checkout_url or not session_id:
+                self.log_result("Create Checkout", False, "Missing checkout_url or session_id", 
+                              {"response": checkout_response})
+                return False
+                
+            self.log_result("Create Checkout", True, "Checkout session created successfully", {
+                "checkout_url": checkout_url,
+                "session_id": session_id,
+                "order_id": checkout_response.get('order_id')
+            })
+            
+            # Now test the payment page URL formation
+            success = self.test_payment_page_urls(checkout_url, session_id, origin_url)
+            
+            # Also test the payment completion endpoint
+            if success:
+                self.test_payment_completion(session_id)
+            
+            return success
+            
+        except Exception as e:
+            self.log_result("Create Checkout", False, f"Checkout request failed: {str(e)}")
+            return False
 
-def test_coupon_system(results: TestResults, user_token: str, admin_token: str):
-    """Test coupon system operations"""
-    user_auth_headers = {"Authorization": f"Bearer {user_token}"}
-    admin_auth_headers = {"Authorization": f"Bearer {admin_token}"}
-    
-    # Test 1: Get available coupons
-    response = make_request("GET", "/coupons")
-    if response["success"] and isinstance(response["data"], list):
-        coupons = response["data"]
-        expected_codes = {"WELCOME10", "FLAT20", "FRESH15"}
-        found_codes = {coupon["code"] for coupon in coupons}
-        if expected_codes.issubset(found_codes):
-            results.log_pass("Get available coupons")
-        else:
-            results.log_fail("Get available coupons", f"Missing expected coupons. Found: {found_codes}")
-    else:
-        results.log_fail("Get available coupons", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 2: Apply WELCOME10 coupon (10% discount)
-    apply_data = {"code": "WELCOME10", "cart_total": 50.0}
-    response = make_request("POST", "/coupons/apply", apply_data, user_auth_headers)
-    if response["success"] and "discount" in response["data"]:
-        discount = response["data"]["discount"]
-        expected_discount = 5.0  # 10% of 50
-        if abs(discount - expected_discount) < 0.01:
-            results.log_pass("Apply WELCOME10 coupon")
-        else:
-            results.log_fail("Apply WELCOME10 coupon", f"Expected discount ₹{expected_discount}, got ₹{discount}")
-    else:
-        results.log_fail("Apply WELCOME10 coupon", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 3: Apply FLAT20 coupon (₹20 flat discount)
-    apply_data = {"code": "FLAT20", "cart_total": 50.0}
-    response = make_request("POST", "/coupons/apply", apply_data, user_auth_headers)
-    if response["success"] and "discount" in response["data"]:
-        discount = response["data"]["discount"]
-        expected_discount = 20.0  # Flat ₹20
-        if abs(discount - expected_discount) < 0.01:
-            results.log_pass("Apply FLAT20 coupon")
-        else:
-            results.log_fail("Apply FLAT20 coupon", f"Expected discount ₹{expected_discount}, got ₹{discount}")
-    else:
-        results.log_fail("Apply FLAT20 coupon", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 4: Try invalid coupon
-    apply_data = {"code": "INVALID123", "cart_total": 50.0}
-    response = make_request("POST", "/coupons/apply", apply_data, user_auth_headers)
-    if not response["success"] and response["status_code"] == 404:
-        results.log_pass("Invalid coupon rejection")
-    else:
-        results.log_fail("Invalid coupon rejection", f"Expected 404 error, got status: {response['status_code']}")
-    
-    # Test 5: Try coupon with cart below minimum order
-    apply_data = {"code": "FLAT20", "cart_total": 10.0}  # FLAT20 requires min ₹30
-    response = make_request("POST", "/coupons/apply", apply_data, user_auth_headers)
-    if not response["success"] and response["status_code"] == 400:
-        results.log_pass("Minimum order validation")
-    else:
-        results.log_fail("Minimum order validation", f"Expected 400 error, got status: {response['status_code']}")
-    
-    # Test 6: Admin create new coupon
-    import time
-    unique_code = f"TEST{int(time.time() % 10000)}"  # Generate unique code
-    new_coupon = {
-        "code": unique_code,
-        "discount_type": "percentage",
-        "discount_value": 50,
-        "min_order": 100,
-        "max_discount": 200,
-        "is_active": True
-    }
-    response = make_request("POST", "/coupons", new_coupon, admin_auth_headers)
-    if response["success"] and "id" in response["data"]:
-        coupon_id = response["data"]["id"]
-        results.log_pass("Admin create coupon")
-    else:
-        results.log_fail("Admin create coupon", f"Status: {response['status_code']}, Data: {response['data']}")
-        return
-    
-    # Test 7: Admin delete coupon
-    response = make_request("DELETE", f"/coupons/{coupon_id}", headers=admin_auth_headers)
-    if response["success"]:
-        results.log_pass("Admin delete coupon")
-    else:
-        results.log_fail("Admin delete coupon", f"Status: {response['status_code']}, Data: {response['data']}")
+    def test_payment_page_urls(self, checkout_url: str, session_id: str, origin_url: str) -> bool:
+        """Test the payment page and verify URL formation"""
+        try:
+            # Request the simulated payment page
+            response = self.session.get(checkout_url, timeout=10)
+            
+            if response.status_code != 200:
+                self.log_result("Payment Page Request", False, f"Payment page failed: {response.status_code}")
+                return False
+                
+            html_content = response.text
+            self.log_result("Payment Page Request", True, "Payment page loaded successfully")
+            
+            # Extract the pay_action URL from the HTML
+            # Look for the form action or any URL containing the complete endpoint
+            pay_action_pattern = r'(https://[^"\'>\s]+/api/payment/simulate/[^/]+/complete)'
+            matches = re.findall(pay_action_pattern, html_content)
+            
+            if not matches:
+                # Try alternative patterns
+                alternative_patterns = [
+                    r'action="([^"]+/complete)"',
+                    r'action=\'([^\']+/complete)\'',
+                    r'(https://[^"\'>\s]+api/payment/simulate/[^/]+/complete)'  # Missing slash pattern
+                ]
+                
+                for pattern in alternative_patterns:
+                    matches = re.findall(pattern, html_content)
+                    if matches:
+                        break
+                        
+            if not matches:
+                self.log_result("URL Extraction", False, "Could not find pay_action URL in HTML", 
+                              {"html_snippet": html_content[:500]})
+                return False
+                
+            pay_action_url = matches[0]
+            expected_url = f"{origin_url}/api/payment/simulate/{session_id}/complete"
+            
+            # Check for the specific issue: missing slash
+            incorrect_url = f"{origin_url}api/payment/simulate/{session_id}/complete"  # Missing slash
+            
+            url_correct = pay_action_url == expected_url
+            url_has_missing_slash = pay_action_url == incorrect_url
+            
+            if url_correct:
+                self.log_result("URL Formation Check", True, "Payment URL correctly formed", {
+                    "expected": expected_url,
+                    "actual": pay_action_url
+                })
+                return True
+            elif url_has_missing_slash:
+                self.log_result("URL Formation Check", False, "Payment URL missing slash - CRITICAL BUG", {
+                    "expected": expected_url,
+                    "actual": pay_action_url,
+                    "issue": "Missing slash between domain and /api"
+                })
+                return False
+            else:
+                self.log_result("URL Formation Check", False, "Payment URL format unexpected", {
+                    "expected": expected_url,
+                    "actual": pay_action_url
+                })
+                return False
+                
+        except Exception as e:
+            self.log_result("Payment Page Test", False, f"Payment page test failed: {str(e)}")
+            return False
 
-def test_product_management(results: TestResults, user_token: str, admin_token: str):
-    """Test product management operations"""
-    user_auth_headers = {"Authorization": f"Bearer {user_token}"}
-    admin_auth_headers = {"Authorization": f"Bearer {admin_token}"}
-    
-    # Test 1: Get categories (needed for product creation)
-    response = make_request("GET", "/categories")
-    if response["success"] and isinstance(response["data"], list) and len(response["data"]) > 0:
-        category_id = response["data"][0]["id"]
-        results.log_pass("Get categories")
-    else:
-        results.log_fail("Get categories", f"Status: {response['status_code']}, Data: {response['data']}")
-        return
-    
-    # Test 2: Create product as admin
-    product_data = {
-        "name": "Test Product",
-        "description": "Test description for product",
-        "price": 9.99,
-        "category_id": category_id,
-        "image": "https://example.com/test.jpg",
-        "unit": "piece",
-        "stock": 50,
-        "weight": "500g"
-    }
-    
-    response = make_request("POST", "/products", product_data, admin_auth_headers)
-    if response["success"] and "id" in response["data"]:
-        product_id = response["data"]["id"]
-        results.log_pass("Admin create product")
-    else:
-        results.log_fail("Admin create product", f"Status: {response['status_code']}, Data: {response['data']}")
-        return
-    
-    # Test 3: Try to create product as regular user (should fail)
-    response = make_request("POST", "/products", product_data, user_auth_headers)
-    if not response["success"] and response["status_code"] == 403:
-        results.log_pass("User create product forbidden")
-    else:
-        results.log_fail("User create product forbidden", f"Expected 403, got status: {response['status_code']}")
-    
-    # Test 4: Get products list
-    response = make_request("GET", "/products")
-    if response["success"] and "products" in response["data"]:
-        products = response["data"]["products"]
-        test_product_found = any(p["id"] == product_id for p in products)
-        if test_product_found:
-            results.log_pass("Get products list")
-        else:
-            results.log_fail("Get products list", "Test product not found in products list")
-    else:
-        results.log_fail("Get products list", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 5: Get single product
-    response = make_request("GET", f"/products/{product_id}")
-    if response["success"] and response["data"].get("id") == product_id:
-        results.log_pass("Get single product")
-    else:
-        results.log_fail("Get single product", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 6: Update product as admin
-    updated_data = {
-        "name": "Updated Test Product",
-        "description": "Updated description",
-        "price": 12.99,
-        "category_id": category_id,
-        "image": "https://example.com/updated.jpg",
-        "unit": "piece",
-        "stock": 75,
-        "weight": "750g"
-    }
-    
-    response = make_request("PUT", f"/products/{product_id}", updated_data, admin_auth_headers)
-    if response["success"]:
-        results.log_pass("Admin update product")
-    else:
-        results.log_fail("Admin update product", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 7: Try to update product as regular user (should fail)
-    response = make_request("PUT", f"/products/{product_id}", updated_data, user_auth_headers)
-    if not response["success"] and response["status_code"] == 403:
-        results.log_pass("User update product forbidden")
-    else:
-        results.log_fail("User update product forbidden", f"Expected 403, got status: {response['status_code']}")
-    
-    # Test 8: Verify product update
-    response = make_request("GET", f"/products/{product_id}")
-    if response["success"] and response["data"].get("name") == "Updated Test Product":
-        results.log_pass("Verify product update")
-    else:
-        results.log_fail("Verify product update", f"Product not updated correctly. Name: {response['data'].get('name')}")
-    
-    # Test 9: Try to delete product as regular user (should fail)
-    response = make_request("DELETE", f"/products/{product_id}", headers=user_auth_headers)
-    if not response["success"] and response["status_code"] == 403:
-        results.log_pass("User delete product forbidden")
-    else:
-        results.log_fail("User delete product forbidden", f"Expected 403, got status: {response['status_code']}")
-    
-    # Test 10: Delete product as admin
-    response = make_request("DELETE", f"/products/{product_id}", headers=admin_auth_headers)
-    if response["success"]:
-        results.log_pass("Admin delete product")
-    else:
-        results.log_fail("Admin delete product", f"Status: {response['status_code']}, Data: {response['data']}")
-    
-    # Test 11: Verify product deletion
-    response = make_request("GET", f"/products/{product_id}")
-    if not response["success"] and response["status_code"] == 404:
-        results.log_pass("Verify product deletion")
-    else:
-        # Check if product is marked as inactive instead of deleted
-        if response["success"] and not response["data"].get("is_active", True):
-            results.log_pass("Verify product deletion (marked inactive)")
-        else:
-            results.log_fail("Verify product deletion", f"Product still accessible after deletion. Status: {response['status_code']}")
+    def test_payment_completion(self, session_id: str) -> bool:
+        """Test the payment completion endpoint"""
+        try:
+            complete_url = f"{BACKEND_URL}/payment/simulate/{session_id}/complete"
+            
+            # Test GET request to completion endpoint
+            response = self.session.get(complete_url, timeout=10, allow_redirects=False)
+            
+            if response.status_code == 302:
+                redirect_url = response.headers.get('Location', '')
+                self.log_result("Payment Completion", True, "Payment completion returns redirect", {
+                    "redirect_url": redirect_url,
+                    "status_code": response.status_code
+                })
+                return True
+            else:
+                self.log_result("Payment Completion", False, f"Unexpected status: {response.status_code}", 
+                              {"response": response.text})
+                return False
+                
+        except Exception as e:
+            self.log_result("Payment Completion", False, f"Payment completion failed: {str(e)}")
+            return False
 
-def test_push_notifications(results: TestResults, user_token: str, admin_token: str):
-    """Test push notification token registration and removal"""
-    
-    # Test 1: Register admin push token
-    admin_push_token = "ExponentPushToken[admin-test-123]"
-    admin_device = "Admin iPhone"
-    
-    response = make_request(
-        "POST", "/auth/push-token",
-        data={"token": admin_push_token, "device_name": admin_device},
-        headers={"Authorization": f"Bearer {admin_token}"}
-    )
-    
-    if response.get("success") and response.get("data", {}).get("message") == "Push token registered":
-        results.log_pass("Admin push token registration")
-    else:
-        results.log_fail("Admin push token registration", f"Expected 'Push token registered', got: {response}")
-    
-    # Test 2: Register user push token
-    user_push_token = "ExponentPushToken[user-test-456]"
-    user_device = "User Android"
-    
-    response = make_request(
-        "POST", "/auth/push-token",
-        data={"token": user_push_token, "device_name": user_device},
-        headers={"Authorization": f"Bearer {user_token}"}
-    )
-    
-    if response.get("success") and response.get("data", {}).get("message") == "Push token registered":
-        results.log_pass("User push token registration")
-    else:
-        results.log_fail("User push token registration", f"Expected 'Push token registered', got: {response}")
-    
-    # Test 3: Duplicate admin token registration (upsert)
-    response = make_request(
-        "POST", "/auth/push-token",
-        data={"token": admin_push_token, "device_name": "Admin iPhone Updated"},
-        headers={"Authorization": f"Bearer {admin_token}"}
-    )
-    
-    if response.get("success") and response.get("data", {}).get("message") == "Push token registered":
-        results.log_pass("Duplicate push token registration (upsert)")
-    else:
-        results.log_fail("Duplicate push token registration", f"Expected 'Push token registered', got: {response}")
-    
-    # Test 4: Remove user push token
-    response = make_request(
-        "DELETE", "/auth/push-token",
-        data={"token": user_push_token},
-        headers={"Authorization": f"Bearer {user_token}"}
-    )
-    
-    if response.get("success") and response.get("data", {}).get("message") == "Push token removed":
-        results.log_pass("Push token removal")
-    else:
-        results.log_fail("Push token removal", f"Expected 'Push token removed', got: {response}")
+    def run_all_tests(self):
+        """Run all payment URL formation tests"""
+        print("🧪 Starting Payment URL Formation Tests")
+        print("=" * 60)
+        
+        # Step 1: Login
+        if not self.login_user():
+            print("❌ Cannot proceed without login")
+            return False
+            
+        # Step 2: Add item to cart
+        if not self.add_item_to_cart():
+            print("❌ Cannot proceed without items in cart")
+            return False
+            
+        # Step 3: Test payment URL formation (main test)
+        if not self.test_payment_url_formation():
+            print("❌ Payment URL formation test failed")
+            return False
+            
+        print("✅ All payment URL formation tests completed successfully!")
+        return True
+
+    def print_summary(self):
+        """Print test summary"""
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for result in self.test_results if result['success'])
+        failed_tests = total_tests - passed_tests
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {failed_tests}")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        
+        if failed_tests > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result['success']:
+                    print(f"  - {result['test']}: {result['message']}")
+                    
+        print("\n" + "=" * 60)
 
 def main():
     """Main test execution"""
-    print("🚀 Starting Backend API Tests for Delivery App")
-    print(f"Testing against: {BASE_URL}")
-    print("="*60)
+    tester = PaymentURLTester()
     
-    results = TestResults()
-    
-    # Test authentication and get tokens
-    print("\n📋 Testing Authentication...")
-    tokens = test_auth_login(results)
-    
-    if "user" not in tokens or "admin" not in tokens:
-        print("❌ Cannot proceed without valid tokens")
-        return False
-    
-    # Test address CRUD operations
-    print("\n🏠 Testing Address CRUD Operations...")
-    test_address_crud(results, tokens["user"])
-    
-    # Test coupon system
-    print("\n🎫 Testing Coupon System...")
-    test_coupon_system(results, tokens["user"], tokens["admin"])
-    
-    # Test product management
-    print("\n📦 Testing Product Management...")
-    test_product_management(results, tokens["user"], tokens["admin"])
-    
-    # Test push notifications
-    print("\n📱 Testing Push Notifications...")
-    test_push_notifications(results, tokens["user"], tokens["admin"])
-    
-    # Print final results
-    success = results.summary()
-    return success
+    try:
+        success = tester.run_all_tests()
+        tester.print_summary()
+        
+        if not success:
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\n🛑 Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n💥 Unexpected error: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    main()

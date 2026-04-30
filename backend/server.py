@@ -111,6 +111,7 @@ class CartUpdate(BaseModel):
 class OrderCreate(BaseModel):
     address: AddressModel
     origin_url: str
+    payment_method: str = "card"  # "card" or "cod" (Cash on Delivery)
 
 class OrderStatusUpdate(BaseModel):
     status: str
@@ -247,6 +248,9 @@ async def get_profile(user=Depends(get_current_user)):
 @api_router.post("/auth/address")
 async def add_address(address: AddressModel, user=Depends(get_current_user)):
     addr_dict = address.dict()
+    # Generate unique ID for the address if not provided
+    if not addr_dict.get('id'):
+        addr_dict['id'] = str(uuid.uuid4())
     await db.users.update_one({'id': user['id']}, {'$push': {'addresses': addr_dict}})
     return {'message': 'Address added', 'address': addr_dict}
 
@@ -511,29 +515,61 @@ async def create_order(data: OrderCreate, request: Request, user=Depends(get_cur
     total = round(total, 2)
 
     order_id = str(uuid.uuid4())
+    payment_method = data.payment_method or "card"
+    
+    # Handle Cash on Delivery (COD)
+    if payment_method == "cod":
+        order = {
+            'id': order_id, 'user_id': user['id'], 'user_name': user['name'],
+            'user_email': user['email'], 'items': order_items, 'total': total,
+            'status': 'confirmed', 'payment_status': 'cod',
+            'payment_method': 'cod',
+            'address': data.address.dict(),
+            'created_at': datetime.now(timezone.utc).isoformat(),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.orders.insert_one(order)
+        
+        # Clear cart
+        await db.carts.delete_one({'user_id': user['id']})
+        
+        # Send push notification to admins about new COD order
+        item_count = sum(item['quantity'] for item in order_items)
+        asyncio.create_task(send_push_to_admins(
+            title="🛒 New COD Order!",
+            body=f"{user['name']} placed a COD order for ₹{total:.2f} ({item_count} items)",
+            data={"order_id": order_id, "type": "new_order"}
+        ))
+        
+        return {'order_id': order_id, 'checkout_url': None, 'session_id': None, 'payment_method': 'cod'}
+    
+    # Card payment - use simulated payment page
     order = {
         'id': order_id, 'user_id': user['id'], 'user_name': user['name'],
         'user_email': user['email'], 'items': order_items, 'total': total,
         'status': 'pending', 'payment_status': 'pending',
+        'payment_method': 'card',
         'address': data.address.dict(),
         'created_at': datetime.now(timezone.utc).isoformat(),
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
     await db.orders.insert_one(order)
 
-    # Stripe checkout
+    # Simulated Stripe checkout
     origin_url = data.origin_url.rstrip('/')
     success_url = f"{origin_url}/checkout?session_id={{CHECKOUT_SESSION_ID}}&status=success&order_id={order_id}"
     cancel_url = f"{origin_url}/checkout?status=cancel&order_id={order_id}"
 
-    host_url = str(request.base_url)
+    # Use the origin_url as base_url for simulated payment page
+    host_url = origin_url + "/"
     webhook_url = f"{host_url}api/webhook/stripe"
     stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
 
     checkout_request = CheckoutSessionRequest(
         amount=float(total), currency='inr',
         success_url=success_url, cancel_url=cancel_url,
-        metadata={'order_id': order_id, 'user_id': user['id']}
+        metadata={'order_id': order_id, 'user_id': user['id']},
+        base_url=host_url
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
 
@@ -559,7 +595,7 @@ async def create_order(data: OrderCreate, request: Request, user=Depends(get_cur
         data={"order_id": order_id, "type": "new_order"}
     ))
 
-    return {'order_id': order_id, 'checkout_url': session.url, 'session_id': session.session_id}
+    return {'order_id': order_id, 'checkout_url': session.url, 'session_id': session.session_id, 'payment_method': 'card'}
 
 @api_router.get("/orders")
 async def get_orders(user=Depends(get_current_user)):
@@ -587,6 +623,25 @@ async def update_order_status(order_id: str, data: OrderStatusUpdate, user=Depen
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail='Order not found')
     return {'message': 'Order status updated'}
+
+@api_router.delete("/orders/{order_id}")
+async def delete_order(order_id: str, user=Depends(get_admin_user)):
+    """Delete a single order (admin only)."""
+    # Also delete related payment transaction
+    await db.payment_transactions.delete_one({'order_id': order_id})
+    result = await db.orders.delete_one({'id': order_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Order not found')
+    return {'message': 'Order deleted successfully'}
+
+@api_router.delete("/orders")
+async def delete_all_orders(user=Depends(get_admin_user)):
+    """Delete all orders (admin only) - useful for cleaning test data."""
+    # Delete all payment transactions
+    await db.payment_transactions.delete_many({})
+    # Delete all orders
+    result = await db.orders.delete_many({})
+    return {'message': f'Deleted {result.deleted_count} orders successfully'}
 
 # ---- Payment Routes ----
 
@@ -666,6 +721,352 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return {'status': 'error', 'message': str(e)}
+
+# ---- Simulated Payment Page ----
+
+@api_router.get("/payment/simulate/{session_id}")
+async def simulated_payment_page(session_id: str, request: Request):
+    """Serve a simulated payment page for testing checkout flow."""
+    from emergentintegrations.payments.stripe.checkout import _sessions_storage
+    
+    session = _sessions_storage.get(session_id, {})
+    if not session:
+        return HTMLResponse("""
+        <html><head><title>Session Not Found</title></head>
+        <body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5f5;">
+        <div style="text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+            <h1 style="color:#dc3545;margin-bottom:16px;">Session Not Found</h1>
+            <p style="color:#666;">This payment session has expired or is invalid.</p>
+        </div></body></html>
+        """, status_code=404)
+    
+    amount = session.get('amount_total', 0)
+    currency = session.get('currency', 'inr').upper()
+    order_id = session.get('metadata', {}).get('order_id', 'N/A')
+    success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
+    cancel_url = session.get('cancel_url', '')
+    
+    # Use the stored base_url from session (the origin URL from the frontend)
+    # This ensures the URL works correctly on all devices
+    base_url = session.get('base_url', '').rstrip('/')
+    if not base_url:
+        # Fallback: try to get from request
+        base_url = str(request.base_url).rstrip('/')
+    
+    # Use the base_url stored in session for pay action (ensure proper slash)
+    pay_action = f"{base_url}/api/payment/simulate/{session_id}/complete"
+    
+    logger.info(f"Simulated payment page for session {session_id}")
+    logger.info(f"Base URL from session: {session.get('base_url')}")
+    logger.info(f"Pay action URL: {pay_action}")
+    
+    return HTMLResponse(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Secure Payment - Test Mode</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+            body {{ 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+            }}
+            .card {{
+                background: white;
+                border-radius: 16px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                width: 100%;
+                max-width: 420px;
+                overflow: hidden;
+            }}
+            .header {{
+                background: linear-gradient(135deg, #2d3436 0%, #000000 100%);
+                color: white;
+                padding: 24px;
+                text-align: center;
+            }}
+            .header .test-badge {{
+                background: #ffc107;
+                color: #000;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                display: inline-block;
+                margin-bottom: 12px;
+            }}
+            .header h1 {{ font-size: 20px; font-weight: 600; }}
+            .header .amount {{ 
+                font-size: 36px; 
+                font-weight: 700; 
+                margin-top: 12px;
+            }}
+            .header .order-id {{ 
+                font-size: 13px; 
+                opacity: 0.7; 
+                margin-top: 8px;
+            }}
+            .content {{ padding: 24px; }}
+            .card-preview {{
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                border-radius: 12px;
+                padding: 20px;
+                color: white;
+                margin-bottom: 24px;
+                position: relative;
+                overflow: hidden;
+            }}
+            .card-preview::before {{
+                content: '';
+                position: absolute;
+                top: -50%;
+                right: -50%;
+                width: 100%;
+                height: 100%;
+                background: rgba(255,255,255,0.1);
+                border-radius: 50%;
+            }}
+            .card-number {{ font-size: 18px; letter-spacing: 3px; margin-bottom: 16px; }}
+            .card-details {{ display: flex; justify-content: space-between; font-size: 12px; }}
+            .form-group {{ margin-bottom: 20px; }}
+            .form-group label {{ 
+                display: block; 
+                font-size: 13px; 
+                font-weight: 600; 
+                color: #555;
+                margin-bottom: 8px;
+            }}
+            .form-group input {{
+                width: 100%;
+                padding: 14px 16px;
+                border: 2px solid #e0e0e0;
+                border-radius: 10px;
+                font-size: 16px;
+                transition: border-color 0.2s;
+                background: #f9f9f9;
+            }}
+            .form-row {{ display: flex; gap: 16px; }}
+            .form-row .form-group {{ flex: 1; }}
+            .btn {{
+                width: 100%;
+                padding: 16px;
+                border: none;
+                border-radius: 10px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-bottom: 12px;
+                text-decoration: none;
+                display: block;
+                text-align: center;
+            }}
+            .btn-pay {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }}
+            .btn-pay:hover {{ transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }}
+            .btn-cancel {{
+                background: #f5f5f5;
+                color: #666;
+            }}
+            .btn-cancel:hover {{ background: #e0e0e0; }}
+            .secure-badge {{
+                text-align: center;
+                color: #888;
+                font-size: 12px;
+                margin-top: 16px;
+            }}
+            .secure-badge svg {{ vertical-align: middle; margin-right: 4px; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="header">
+                <span class="test-badge">⚠️ TEST MODE</span>
+                <h1>Complete Your Payment</h1>
+                <div class="amount">{currency} {amount:.2f}</div>
+                <div class="order-id">Order: #{order_id[:8]}...</div>
+            </div>
+            <div class="content">
+                <div class="card-preview">
+                    <div class="card-number">4242 •••• •••• 4242</div>
+                    <div class="card-details">
+                        <span>TEST CARD</span>
+                        <span>12/26</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Card Number (Pre-filled for testing)</label>
+                    <input type="text" value="4242 4242 4242 4242" readonly>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Expiry</label>
+                        <input type="text" value="12/26" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>CVV</label>
+                        <input type="text" value="123" readonly>
+                    </div>
+                </div>
+                
+                <button onclick="processPayment()" class="btn btn-pay" id="payBtn">
+                    Pay {currency} {amount:.2f}
+                </button>
+                <button onclick="cancelPayment()" class="btn btn-cancel">
+                    Cancel Payment
+                </button>
+                
+                <div class="secure-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+                    </svg>
+                    Secured by Simulated Payment Gateway (Test Mode)
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function processPayment() {{
+                var btn = document.getElementById('payBtn');
+                btn.textContent = 'Processing...';
+                btn.disabled = true;
+                
+                // Navigate to the payment completion URL
+                // Using window.location.href for better cross-platform compatibility
+                window.location.href = '{pay_action}';
+            }}
+            
+            function cancelPayment() {{
+                window.location.href = '{cancel_url}';
+            }}
+        </script>
+    </body>
+    </html>
+    """)
+
+
+@api_router.post("/payment/simulate/{session_id}/pay")
+async def process_simulated_payment(session_id: str, request: Request):
+    """Process simulated payment - marks session as paid and redirects."""
+    from emergentintegrations.payments.stripe.checkout import _sessions_storage
+    
+    session = _sessions_storage.get(session_id)
+    if not session:
+        return {"success": False, "error": "Session not found"}
+    
+    # Mark session as paid
+    _sessions_storage[session_id]["status"] = "complete"
+    _sessions_storage[session_id]["payment_status"] = "paid"
+    
+    # Update database records
+    transaction = await db.payment_transactions.find_one({'session_id': session_id}, {'_id': 0})
+    if transaction:
+        await db.payment_transactions.update_one(
+            {'session_id': session_id},
+            {'$set': {'status': 'completed', 'payment_status': 'paid',
+                      'updated_at': datetime.now(timezone.utc).isoformat()}}
+        )
+        order_id = transaction.get('order_id')
+        if order_id:
+            await db.orders.update_one(
+                {'id': order_id},
+                {'$set': {'payment_status': 'paid', 'status': 'confirmed',
+                          'updated_at': datetime.now(timezone.utc).isoformat()}}
+            )
+            # Send push notification
+            order = await db.orders.find_one({'id': order_id}, {'_id': 0})
+            if order:
+                asyncio.create_task(send_push_to_admins(
+                    title="💰 Payment Confirmed!",
+                    body=f"Order #{order_id[:8]} by {order.get('user_name', 'Customer')} - ₹{order.get('total', 0):.2f} paid",
+                    data={"order_id": order_id, "type": "payment_confirmed"}
+                ))
+    
+    # Get success URL and replace placeholder
+    success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
+    
+    return {"success": True, "redirect_url": success_url}
+
+
+@api_router.get("/payment/simulate/{session_id}/complete")
+async def complete_simulated_payment(session_id: str, request: Request):
+    """Complete simulated payment via GET - processes payment and redirects directly."""
+    from emergentintegrations.payments.stripe.checkout import _sessions_storage
+    from fastapi.responses import RedirectResponse
+    
+    logger.info(f"Payment complete request for session: {session_id}")
+    logger.info(f"Available sessions: {list(_sessions_storage.keys())}")
+    
+    session = _sessions_storage.get(session_id)
+    if not session:
+        logger.error(f"Session {session_id} not found in storage")
+        return HTMLResponse("""
+        <html><head><title>Session Expired</title></head>
+        <body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;">
+        <div style="text-align:center"><h1>Session Expired</h1><p>This payment session has expired.</p></div></body></html>
+        """, status_code=404)
+    
+    logger.info(f"Session found: {session}")
+    
+    # Mark session as paid
+    _sessions_storage[session_id]["status"] = "complete"
+    _sessions_storage[session_id]["payment_status"] = "paid"
+    
+    # Update database records
+    transaction = await db.payment_transactions.find_one({'session_id': session_id}, {'_id': 0})
+    if transaction:
+        await db.payment_transactions.update_one(
+            {'session_id': session_id},
+            {'$set': {'status': 'completed', 'payment_status': 'paid',
+                      'updated_at': datetime.now(timezone.utc).isoformat()}}
+        )
+        order_id = transaction.get('order_id')
+        if order_id:
+            await db.orders.update_one(
+                {'id': order_id},
+                {'$set': {'payment_status': 'paid', 'status': 'confirmed',
+                          'updated_at': datetime.now(timezone.utc).isoformat()}}
+            )
+            # Send push notification
+            order = await db.orders.find_one({'id': order_id}, {'_id': 0})
+            if order:
+                asyncio.create_task(send_push_to_admins(
+                    title="💰 Payment Confirmed!",
+                    body=f"Order #{order_id[:8]} by {order.get('user_name', 'Customer')} - ₹{order.get('total', 0):.2f} paid",
+                    data={"order_id": order_id, "type": "payment_confirmed"}
+                ))
+    
+    # Get success URL and replace placeholder
+    success_url = session.get('success_url', '').replace('{CHECKOUT_SESSION_ID}', session_id)
+    logger.info(f"Redirecting to success URL: {success_url}")
+    
+    # Redirect to success URL
+    return RedirectResponse(url=success_url, status_code=302)
+
+
+@api_router.post("/payment/simulate/{session_id}/cancel")
+async def cancel_simulated_payment(session_id: str):
+    """Cancel simulated payment."""
+    from emergentintegrations.payments.stripe.checkout import _sessions_storage
+    
+    session = _sessions_storage.get(session_id)
+    if not session:
+        return {"success": False, "error": "Session not found"}
+    
+    _sessions_storage[session_id]["status"] = "cancelled"
+    _sessions_storage[session_id]["payment_status"] = "cancelled"
+    
+    cancel_url = session.get('cancel_url', '')
+    return {"success": True, "redirect_url": cancel_url}
 
 # ---- Admin Routes ----
 

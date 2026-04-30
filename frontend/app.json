@@ -71,7 +71,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000"
@@ -80,6 +80,13 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "backendUrl": "http://192.168.1.38:8000",
+      "router": {},
+      "eas": {
+        "projectId": "216aa090-199b-4671-b500-8b55ee8d78d8"
+      }
     }
   }
 }

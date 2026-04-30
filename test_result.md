@@ -354,6 +354,87 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: DELETE /api/auth/push-token successfully removes push tokens. Requires JSON body with token field and proper authentication. Returns 'Push token removed' message on success."
 
+  - task: "Payment - Simulated Payment Page"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added GET /api/payment/simulate/{session_id} endpoint that serves a beautiful simulated payment HTML page with test card info pre-filled."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/payment/simulate/{session_id} successfully serves simulated payment page with 'Secure Payment - Test Mode' title and TEST MODE indicators. Page loads correctly with status 200."
+
+  - task: "Payment - Process Simulated Payment"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added POST /api/payment/simulate/{session_id}/pay endpoint that marks the session as paid and updates order status to confirmed."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/payment/simulate/{session_id}/pay successfully processes payment. Returns success=true and redirect_url with 'status=success'. Order payment_status updated to 'paid' and status to 'confirmed'."
+
+  - task: "Payment - COD Checkout"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated POST /api/orders/checkout to support payment_method='cod'. COD orders skip payment page and are directly confirmed with payment_status='cod'."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/orders/checkout with payment_method='cod' works perfectly. Returns order_id, checkout_url=null, payment_method='cod'. Order created with status='confirmed' and payment_status='cod'. COD flow correctly skips payment page."
+
+  - task: "Payment - Card Payment Checkout"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/orders/checkout with payment_method='card' successfully creates checkout session. Returns order_id, session_id, and checkout_url pointing to local simulated endpoint (/api/payment/simulate/{session_id}). No longer returns fake Stripe URLs."
+
+  - task: "Payment - Payment Status Check"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/payments/status/{session_id} correctly returns payment_status='paid' and status='complete' after successful payment processing. Status updates work correctly."
+
+  - task: "Payment - Complete Payment via GET Redirect"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/payment/simulate/{session_id}/complete successfully processes payment and returns 302 redirect. Redirect URL contains session_id and status=success. Order payment_status updated to 'paid' and status to 'confirmed'. Payment status API confirms payment_status='paid' and status='complete'. Full payment flow working correctly with GET-based completion instead of JavaScript fetch."
+
 frontend:
   - task: "Admin - Add Product UI"
     implemented: true
@@ -446,13 +527,25 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Address CRUD - Add, Edit, Delete"
-    - "Coupon System - Get, Apply, Create, Delete"
-    - "Product Management - CRUD operations and admin permissions"
+  current_focus: []
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
+
+  - task: "Payment - URL Formation Verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Quick verification test for the payment flow fix. Test that the payment URLs are correctly formed."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Payment URL formation verified successfully. The pay_action URL is correctly formed as 'https://code-preview-155.preview.emergentagent.com/api/payment/simulate/{session_id}/complete' with proper slash between domain and /api. No missing slash issue found. Backend logs confirm: 'Pay action URL: https://code-preview-155.preview.emergentagent.com/api/payment/simulate/cs_sim_1777357577976_275040526105840/complete'. Full payment flow tested: login → add to cart → checkout → payment page → payment completion. All 6 test scenarios passed."
 
 agent_communication:
   - agent: "main"
@@ -463,3 +556,11 @@ agent_communication:
     message: "✅ PRODUCT MANAGEMENT TESTING COMPLETE: All 11 product management backend endpoints tested successfully. Admin can create/update/delete products with proper authentication. Regular users correctly forbidden (403) from admin operations. GET /api/categories returns 5 categories, GET /api/products returns paginated results, individual product retrieval works. Product CRUD cycle verified: create → read → update → verify update → delete → verify deletion. All authorization checks working correctly. Total 26/26 backend tests passed."
   - agent: "testing"
     message: "✅ PUSH NOTIFICATION TESTING COMPLETE: All push notification backend endpoints tested successfully. POST /api/auth/push-token registers tokens for both admin and user accounts with proper authentication. Supports upsert functionality - duplicate registrations update existing records. DELETE /api/auth/push-token removes tokens correctly with JSON body containing token field. All test scenarios from review request passed: admin token registration, user token registration, duplicate token handling, and token removal. Backend logs confirm proper token storage and user role tracking. Total 32/32 backend tests passed."
+  - agent: "main"
+    message: "PAYMENT FLOW FIX: Fixed the broken payment flow. Created simulated payment page (GET /api/payment/simulate/{session_id}) with beautiful UI. Added payment processing endpoint (POST /api/payment/simulate/{session_id}/pay) that marks orders as paid. Added Cash on Delivery (COD) option in checkout. Updated frontend with payment method selection UI. Test credentials: user@test.com/user123, admin@delivery.com/admin123. Please test: 1) Card payment flow (simulated page opens, can pay successfully), 2) COD checkout (skips payment, order confirmed), 3) Payment status update after successful payment."
+  - agent: "testing"
+    message: "✅ PAYMENT FLOW TESTING COMPLETE: All 5 payment backend endpoints tested successfully. COD checkout works perfectly - returns checkout_url=null, payment_method='cod', creates order with status='confirmed' and payment_status='cod'. Card payment checkout creates session with local simulated URL (/api/payment/simulate/{session_id}) - no more fake Stripe URLs. Simulated payment page loads correctly with test mode indicators. Payment processing (POST /pay) successfully updates order to 'paid' status. Payment status check returns correct 'paid'/'complete' status. All 7 test scenarios passed. Payment flow is now fully functional and user-reported issue 'payment is not working from user end' is RESOLVED."
+  - agent: "testing"
+    message: "✅ PAYMENT COMPLETE ENDPOINT TESTING COMPLETE: New GET /api/payment/simulate/{session_id}/complete endpoint tested successfully. Returns 302 redirect with session_id and status=success in URL. Order payment_status correctly updated to 'paid' and status to 'confirmed'. Payment status API confirms payment_status='paid' and status='complete'. GET-based payment completion working correctly as alternative to JavaScript fetch. All test scenarios from review request passed: login → add to cart → checkout → payment complete → verify redirect → verify order status. Payment redirect flow fully functional."
+  - agent: "testing"
+    message: "✅ PAYMENT URL FORMATION VERIFICATION COMPLETE: Tested the specific concern about payment URLs being incorrectly formed. The pay_action URL is correctly formed as 'https://code-preview-155.preview.emergentagent.com/api/payment/simulate/{session_id}/complete' with proper slash between domain and /api. Backend logs confirm correct URL generation. No missing slash issue found (NOT 'https://code-preview-155.preview.emergentagent.comapi/payment/...'). Full payment flow verified: login → add to cart → checkout with origin_url → payment page request → URL extraction → payment completion. All 6 test scenarios passed. Payment URL formation is working correctly."
