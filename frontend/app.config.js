@@ -9,6 +9,6 @@ export default ({ config }) => {
     extra: {
       ...extra,
       backendUrl: backendUrl || 'http://127.0.0.1:8000',
-    },
+    }
   };
 };
