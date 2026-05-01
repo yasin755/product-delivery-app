@@ -79,10 +79,26 @@ export function useNotifications() {
       setPermissionGranted(true);
 
       // Get the Expo push token
+      // For Expo Go, projectId can be undefined and it will use the default Expo project
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: projectId,
-      });
+      
+      let tokenData;
+      try {
+        // Try with projectId first (for standalone builds)
+        if (projectId && projectId !== 'your-project-id') {
+          tokenData = await Notifications.getExpoPushTokenAsync({
+            projectId: projectId,
+          });
+        } else {
+          // For Expo Go testing, don't pass projectId
+          tokenData = await Notifications.getExpoPushTokenAsync();
+        }
+      } catch (tokenError: any) {
+        console.log('Error getting push token with projectId, trying without:', tokenError.message);
+        // Fallback: try without projectId for Expo Go
+        tokenData = await Notifications.getExpoPushTokenAsync();
+      }
+      
       const token = tokenData.data;
       setExpoPushToken(token);
       console.log('Expo Push Token:', token);
