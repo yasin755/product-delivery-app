@@ -8,12 +8,17 @@
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "owner": "yasin755",
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Detect your location for delivery address",
         "UIBackgroundModes": [
-          "remote-notification",
           "remote-notification"
         ],
         "NSAppTransportSecurity": {
@@ -47,11 +52,10 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ],
-      "package": "com.yasin755.frontend"
+      "package": "com.yasin755.frontend",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
