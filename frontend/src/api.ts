@@ -78,7 +78,8 @@ const getBackendUrl = () => {
       url = 'http://192.168.1.38:8000';
       logDebug('Android physical device - using default LAN IP', url);
     } else {
-      url = 'http://10.0.2.2:8000';
+      url = 'http://192.168.1.38:8000';
+      //url = 'http://10.0.2.2:8000';
       logDebug('Android emulator - using 10.0.2.2', url);
     }
   } else {

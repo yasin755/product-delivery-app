@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "YASM Product",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,7 +11,7 @@
     "owner": "yasin755",
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "216aa090-199b-4671-b500-8b55ee8d78d8"
       }
     },
     "ios": {
@@ -54,7 +54,7 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ],
-      "package": "com.yasin755.frontend",
+      "package": "com.yasm.productdelivery",
       "googleServicesFile": "./google-services.json"
     },
     "web": {

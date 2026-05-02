@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "756278095845",
+    "project_id": "product-delivery-app-fce49",
+    "storage_bucket": "product-delivery-app-fce49.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:756278095845:android:bb9fdb64a5671f6c7c090c",
+        "android_client_info": {
+          "package_name": "com.yasm.productdelivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBt3BgzacDVYPFTGnBd5TV6R7CfTS2J5rc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
