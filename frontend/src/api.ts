@@ -7,6 +7,8 @@ const logDebug = (label: string, value: any) => {
   console.log(`[API Debug] ${label}:`, value);
 };
 
+// IMPORTANT: For Render deployment, set EXPO_PUBLIC_BACKEND_URL in your .env file
+// Example: EXPO_PUBLIC_BACKEND_URL=https://your-app.onrender.com
 // Android emulator uses 10.0.2.2 as an alias to reach the host machine.
 // iOS simulator can use localhost. Physical devices should use LAN IP.
 const getBackendUrl = () => {
@@ -14,9 +16,14 @@ const getBackendUrl = () => {
   logDebug('Constants.isDevice', Constants.isDevice);
   logDebug('Constants.expoConfig full', JSON.stringify(Constants.expoConfig, null, 2));
   
-  // First, try to use environment variable (from .env)
+  // FIRST PRIORITY: Use environment variable (works for Render and production deployments)
   const envBackendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   logDebug('EXPO_PUBLIC_BACKEND_URL from env', envBackendUrl);
+  
+  if (envBackendUrl && envBackendUrl.trim()) {
+    logDebug('Using EXPO_PUBLIC_BACKEND_URL from environment', envBackendUrl);
+    return envBackendUrl;
+  }
   
   const hostUri = Constants.expoConfig?.hostUri as string | undefined;
   logDebug('Host URI from Constants.expoConfig', hostUri);
@@ -24,13 +31,6 @@ const getBackendUrl = () => {
   let url = '';
   
   if (Platform.OS === 'ios') {
-    // Try environment variable first
-    if (envBackendUrl && envBackendUrl.trim()) {
-      url = envBackendUrl;
-      logDebug('iOS - using env var EXPO_PUBLIC_BACKEND_URL', url);
-      return url;
-    }
-    
     // Try to extract from hostUri
     if (hostUri) {
       try {
@@ -44,7 +44,7 @@ const getBackendUrl = () => {
       }
     }
     
-    // Default fallbacks
+    // Default fallbacks for local development
     if (Constants.isDevice) {
       url = 'http://192.168.1.38:8000';
       logDebug('iOS physical device - using default LAN IP', url);
@@ -53,13 +53,6 @@ const getBackendUrl = () => {
       logDebug('iOS simulator - using localhost', url);
     }
   } else if (Platform.OS === 'android') {
-    // Try environment variable first
-    if (envBackendUrl && envBackendUrl.trim()) {
-      url = envBackendUrl;
-      logDebug('Android - using env var EXPO_PUBLIC_BACKEND_URL', url);
-      return url;
-    }
-    
     // Try to extract from hostUri for physical devices
     if (Constants.isDevice && hostUri) {
       try {
@@ -73,13 +66,12 @@ const getBackendUrl = () => {
       }
     }
     
-    // Default fallbacks
+    // Default fallbacks for local development
     if (Constants.isDevice) {
       url = 'http://192.168.1.38:8000';
       logDebug('Android physical device - using default LAN IP', url);
     } else {
-      url = 'http://192.168.1.38:8000';
-      //url = 'http://10.0.2.2:8000';
+      url = 'http://10.0.2.2:8000';
       logDebug('Android emulator - using 10.0.2.2', url);
     }
   } else {

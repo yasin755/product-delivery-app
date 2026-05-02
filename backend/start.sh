@@ -19,4 +19,15 @@ if [[ "$PYTHON_BIN" == "python3" ]]; then
 fi
 
 echo "Using Python: $($PYTHON_BIN --version 2>&1)"
-$PYTHON_BIN -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
+
+# Get PORT from environment (needed for Render), default to 8000
+PORT=${PORT:-8000}
+# Get HOST from environment (needed for production), default to 0.0.0.0
+HOST=${HOST:-0.0.0.0}
+# Disable reload in production
+RELOAD="--reload"
+if [[ "$RENDER" == "true" ]]; then
+  RELOAD=""
+fi
+
+$PYTHON_BIN -m uvicorn server:app $RELOAD --host $HOST --port $PORT
