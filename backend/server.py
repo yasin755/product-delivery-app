@@ -124,13 +124,52 @@ class PushTokenRegister(BaseModel):
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
+async def send_push_notification(token: str, title: str, body: str, data: dict = None):
+    """Send push notification to a specific token."""
+    try:
+        if not token or not token.startswith('ExponentPushToken'):
+            logger.error(f"Invalid push token: {token}")
+            return False
+        
+        message = {
+            "to": token,
+            "sound": "default",
+            "title": title,
+            "body": body,
+            "priority": "high",
+            "channelId": "orders",
+        }
+        if data:
+            message["data"] = data
+        
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(
+                EXPO_PUSH_URL,
+                json=[message],
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                timeout=10.0,
+            )
+            logger.info(f"Push notification sent to {token[:30]}...: {response.status_code} - {response.text[:200]}")
+            return response.status_code == 200
+    except Exception as e:
+        logger.error(f"Push notification error: {e}")
+        return False
+
 async def send_push_to_admins(title: str, body: str, data: dict = None):
     """Send push notification to all admin users who have registered push tokens."""
     try:
         admin_tokens = await db.push_tokens.find({'role': 'admin'}, {'_id': 0}).to_list(100)
+        logger.info(f"Found {len(admin_tokens)} admin push tokens")
+        
         if not admin_tokens:
             logger.info("No admin push tokens found, skipping notification")
             return
+        
+        for token_doc in admin_tokens:
+            logger.info(f"Admin token doc: {token_doc}")
 
         messages = []
         for token_doc in admin_tokens:
@@ -142,17 +181,20 @@ async def send_push_to_admins(title: str, body: str, data: dict = None):
                     "title": title,
                     "body": body,
                     "priority": "high",
+                    "channelId": "orders",
                 }
                 if data:
                     message["data"] = data
                 messages.append(message)
+                logger.info(f"Adding message for token: {token[:40]}...")
 
         if not messages:
             logger.info("No valid Expo push tokens found")
             return
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
+        logger.info(f"Sending {len(messages)} push notifications to Expo")
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(
                 EXPO_PUSH_URL,
                 json=messages,
                 headers={
@@ -161,9 +203,9 @@ async def send_push_to_admins(title: str, body: str, data: dict = None):
                 },
                 timeout=10.0,
             )
-            logger.info(f"Push notification sent: {response.status_code} - {response.text[:200]}")
+            logger.info(f"Push notification response: {response.status_code} - {response.text}")
     except Exception as e:
-        logger.error(f"Push notification error: {e}")
+        logger.error(f"Push notification error: {e}", exc_info=True)
 
 # ---- Auth Helpers ----
 
@@ -294,7 +336,16 @@ async def register_push_token(data: PushTokenRegister, user=Depends(get_current_
         }},
         upsert=True,
     )
-    logger.info(f"Push token registered for user {user['id']} (role: {user['role']})")
+    logger.info(f"Push token registered for user {user['id']} (role: {user['role']}) - token: {data.token[:40]}...")
+    
+    # Send welcome notification to the user
+    asyncio.create_task(send_push_notification(
+        data.token,
+        f"👋 Welcome, {user['name']}!",
+        f"You're now logged in as {user['role']}. Notifications are enabled!",
+        {"type": "welcome", "user_id": user['id']}
+    ))
+    
     return {'message': 'Push token registered'}
 
 @api_router.delete("/auth/push-token")
@@ -302,6 +353,43 @@ async def remove_push_token(data: PushTokenRegister, user=Depends(get_current_us
     """Remove a push token (e.g., on logout)."""
     await db.push_tokens.delete_one({'token': data.token, 'user_id': user['id']})
     return {'message': 'Push token removed'}
+
+@api_router.get("/auth/push-tokens")
+async def get_push_tokens(user=Depends(get_admin_user)):
+    """Get all registered push tokens (admin only) - for debugging."""
+    tokens = await db.push_tokens.find({}, {'_id': 0}).to_list(100)
+    return {'tokens': tokens, 'count': len(tokens)}
+
+@api_router.post("/auth/test-push")
+async def test_push_notification(user=Depends(get_current_user)):
+    """Send a test push notification to the current user."""
+    # Find the user's push token
+    token_doc = await db.push_tokens.find_one({'user_id': user['id']}, {'_id': 0})
+    if not token_doc:
+        raise HTTPException(status_code=404, detail='No push token registered for this user. Please enable notifications first.')
+    
+    token = token_doc.get('token', '')
+    success = await send_push_notification(
+        token,
+        "🔔 Test Notification",
+        f"Hello {user['name']}! This is a test notification.",
+        {"type": "test", "user_id": user['id']}
+    )
+    
+    if success:
+        return {'message': 'Test notification sent successfully', 'token': token[:40] + '...'}
+    else:
+        raise HTTPException(status_code=500, detail='Failed to send notification. Check server logs.')
+
+@api_router.post("/admin/test-push-to-admins")
+async def test_push_to_all_admins(user=Depends(get_admin_user)):
+    """Send a test push notification to all admins (admin only)."""
+    await send_push_to_admins(
+        "🔔 Admin Test Notification",
+        f"Test notification triggered by {user['name']}",
+        {"type": "admin_test", "triggered_by": user['id']}
+    )
+    return {'message': 'Test notification sent to all admins'}
 
 # ---- Coupon Routes ----
 
