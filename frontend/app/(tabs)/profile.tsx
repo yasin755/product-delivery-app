@@ -124,11 +124,20 @@ export default function ProfileScreen() {
     }
   }
 
+  async function testPushNotification() {
+    try {
+      const result = await api('/api/auth/test-push', { method: 'POST' });
+      Alert.alert('Success! 🔔', result.message || 'Test notification sent!');
+    } catch (e: any) {
+      Alert.alert('Notification Test Failed', e.message || 'Failed to send test notification. Make sure notifications are enabled.');
+    }
+  }
+
   const menuItems = [
     { icon: 'receipt-outline', label: 'My Orders', onPress: () => router.push('/(tabs)/orders'), testID: 'profile-orders-btn' },
     { icon: 'location-outline', label: 'Delivery Addresses', onPress: () => openNewAddress(), testID: 'profile-addresses-btn' },
     { icon: 'card-outline', label: 'Payment Methods', onPress: () => {}, testID: 'profile-payments-btn' },
-    { icon: 'notifications-outline', label: 'Notifications', onPress: () => {}, testID: 'profile-notifications-btn' },
+    { icon: 'notifications-outline', label: 'Test Push Notification', onPress: testPushNotification, testID: 'profile-test-notification-btn' },
     { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => {}, testID: 'profile-help-btn' },
   ];
 
