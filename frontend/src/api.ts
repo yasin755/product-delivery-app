@@ -78,7 +78,7 @@ const getBackendUrl = () => {
     url = 'http://localhost:8000';
     logDebug('Web - using localhost', url);
   }
-  
+  url = 'https://product-delivery-app.onrender.com';
   logDebug('Final API_BASE URL selected', url);
   return url;
 };
